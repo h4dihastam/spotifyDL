@@ -7,6 +7,7 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 from downloader import Downloader
+from keep_alive import keep_alive
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -215,6 +216,7 @@ import asyncio
 # ... بقیه importها
 
 def main():
+    keep_alive()
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
