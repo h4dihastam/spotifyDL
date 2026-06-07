@@ -222,14 +222,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Bot started...")
-    
-    # راه درست برای Python 3.12+
     asyncio.run(app.run_polling(allowed_updates=Update.ALL_TYPES))
-
-if __name__ == "__main__":
-    main()
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
 
 if __name__ == "__main__":
     main()

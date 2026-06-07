@@ -3,3 +3,9 @@ spotdl==4.5.0
 yt-dlp>=2024.1.0
 mutagen==1.47.0
 aiohttp==3.10.5
+aiohttp==3.10.5
+mutagen==1.47.0
+python-telegram-bot==21.5
+spotdl==4.5.0
+telegram
+yt-dlp
