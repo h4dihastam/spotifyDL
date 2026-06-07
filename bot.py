@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 dl = Downloader()
+
+
+def _extract_spotify_id(url: str) -> str:
+    """استخراج ID اسپاتیفای از URL (بدون query string)"""
+    m = re.search(r'spotify\.com/(?:track|album|playlist)/([A-Za-z0-9]+)', url)
+    return m.group(1) if m else ""
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -45,7 +52,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• اسم آهنگ (فارسی یا انگلیسی)\n\n"
         "*کیفیت:*\n"
         "🔹 320kbps MP3\n"
-        "🔸 بهترین کیفیت موجود\n\n"
+        "🔸 128kbps MP3\n\n"
         "⚠️ پلی‌لیست‌های بزرگ زمان بیشتری می‌برن.",
         parse_mode="Markdown"
     )
@@ -66,12 +73,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ لینک اسپاتیفای معتبر نیست.")
             return
 
-        key = f"sp_{update.effective_chat.id}_{update.message.message_id}"
-        context.bot_data[key] = {"url": text, "kind": kind}
+        sp_id = _extract_spotify_id(text)
+        if not sp_id:
+            await update.message.reply_text("❌ نتونستم ID اسپاتیفای رو پیدا کنم.")
+            return
 
+        # فرمت: dl|quality|kind|SPOTIFY_ID  (حدود ۳۷ بایت — زیر ۶۴)
         keyboard = [[
-            InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{key}"),
-            InlineKeyboardButton("🔸 128kbps", callback_data=f"dl|128|{key}"),
+            InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{kind}|{sp_id}"),
+            InlineKeyboardButton("🔸 128kbps", callback_data=f"dl|128|{kind}|{sp_id}"),
         ]]
         await update.message.reply_text(
             f"{emoji} *{label}* شناسایی شد.\nکیفیت دانلود رو انتخاب کن:",
@@ -137,14 +147,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data.startswith("dl|"):
-        # dl|quality|sp_key
-        parts = data.split("|", 2)
-        quality, sp_key = parts[1], parts[2]
-        stored = context.bot_data.get(sp_key)
-        if not stored:
-            await query.edit_message_text("❌ لینک منقضی شده. دوباره بفرست.")
+        # dl|quality|kind|SPOTIFY_ID
+        parts = data.split("|", 3)
+        if len(parts) != 4:
+            await query.edit_message_text("❌ داده نامعتبر.")
             return
-        url, kind = stored["url"], stored["kind"]
+        quality, kind, sp_id = parts[1], parts[2], parts[3]
+        url = f"https://open.spotify.com/{kind}/{sp_id}"
         await run_download(update, context, url=url, kind=kind, quality=quality, is_spotify=True)
 
     elif data.startswith("ytdl|"):
@@ -153,7 +162,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quality, yt_key = parts[1], parts[2]
         stored = context.bot_data.get(yt_key)
         if not stored:
-            await query.edit_message_text("❌ لینک منقضی شده. دوباره جستجو کن.")
+            await query.edit_message_text("❌ نتایج منقضی شدن. دوباره جستجو کن.")
             return
         url = stored["url"]
         await run_download(update, context, url=url, kind="track", quality=quality, is_spotify=False)
@@ -172,7 +181,6 @@ async def run_download(update, context, url, kind, quality, is_spotify):
             result = await dl.download_one(url, quality, is_spotify)
             await send_audio(context.bot, chat_id, result)
         else:
-            # آلبوم یا پلی‌لیست
             tracks = await dl.get_collection_tracks(url, kind)
             total = len(tracks)
             await context.bot.send_message(chat_id, f"📦 {total} آهنگ پیدا شد. شروع دانلود...")
@@ -195,7 +203,7 @@ async def run_download(update, context, url, kind, quality, is_spotify):
             )
     except Exception as e:
         logger.error(f"Download error: {e}")
-        await context.bot.send_message(chat_id, f"❌ خطا:\n`{str(e)[:300]}`", parse_mode="Markdown")
+        await context.bot.send_message(chat_id, f"❌ خطا:\n{str(e)[:300]}")
 
 
 async def send_audio(bot, chat_id, result):
@@ -203,18 +211,22 @@ async def send_audio(bot, chat_id, result):
         await bot.send_message(chat_id, f"❌ {result.get('error', 'خطای ناشناخته')}")
         return
 
-    caption = f"🎵 *{result['title']}*"
-    if result.get("artist"):
-        caption += f"\n👤 {result['artist']}"
-    if result.get("album"):
-        caption += f"\n💿 {result['album']}"
+    title = result.get("title", "")
+    artist = result.get("artist", "")
+    album = result.get("album", "")
+
+    caption = f"🎵 {title}"
+    if artist:
+        caption += f"\n👤 {artist}"
+    if album:
+        caption += f"\n💿 {album}"
 
     thumb = open(result["thumb"], "rb") if result.get("thumb") else None
     try:
         with open(result["path"], "rb") as f:
             await bot.send_audio(
-                chat_id, audio=f, caption=caption, parse_mode="Markdown",
-                title=result.get("title"), performer=result.get("artist"),
+                chat_id, audio=f, caption=caption,
+                title=title, performer=artist,
                 thumbnail=thumb
             )
     finally:
@@ -227,24 +239,21 @@ async def send_audio(bot, chat_id, result):
 
     # ارسال لیریک
     lyrics = result.get("lyrics", "").strip()
-    if not lyrics:
-        title = result.get("title", "")
-        artist = result.get("artist", "")
-        if title:
-            lyrics = await dl.fetch_lyrics(title, artist)
+    if not lyrics and title:
+        lyrics = await dl.fetch_lyrics(title, artist)
 
     if lyrics:
-        header = f"📝 *متن آهنگ — {result.get('title', '')}*\n\n"
+        header = f"📝 متن آهنگ — {title}\n{'─'*30}\n"
         full = header + lyrics
-        # تلگرام حداکثر 4096 کاراکتر
         for i in range(0, len(full), 4000):
-            await bot.send_message(chat_id, full[i:i+4000], parse_mode="Markdown")
+            try:
+                await bot.send_message(chat_id, full[i:i+4000])
+            except Exception as e:
+                logger.warning(f"Lyrics send failed: {e}")
+                break
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-import asyncio
-# ... بقیه importها
-
 def main():
     keep_alive()
     app = Application.builder().token(BOT_TOKEN).build()
