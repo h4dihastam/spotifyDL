@@ -66,9 +66,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ لینک اسپاتیفای معتبر نیست.")
             return
 
+        key = f"sp_{update.effective_chat.id}_{update.message.message_id}"
+        context.bot_data[key] = {"url": text, "kind": kind}
+
         keyboard = [[
-            InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{kind}|{text}"),
-            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"dl|best|{kind}|{text}"),
+            InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{key}"),
+            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"dl|best|{key}"),
         ]]
         await update.message.reply_text(
             f"{emoji} *{label}* شناسایی شد.\nکیفیت دانلود رو انتخاب کن:",
@@ -111,18 +114,21 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data.startswith("pick|"):
-        # pick|index|key
+        # pick|index|sr_key
         _, idx, key = data.split("|", 2)
         results = context.bot_data.get(key)
         if not results:
             await query.edit_message_text("❌ نتایج منقضی شدن. دوباره جستجو کن.")
             return
         r = results[int(idx)]
-        yt_url = r["url"]
         title = r["title"]
+
+        yt_key = f"yt_{key}_{idx}"
+        context.bot_data[yt_key] = {"url": r["url"]}
+
         keyboard = [[
-            InlineKeyboardButton("🔹 320kbps", callback_data=f"ytdl|320|{yt_url}"),
-            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"ytdl|best|{yt_url}"),
+            InlineKeyboardButton("🔹 320kbps", callback_data=f"ytdl|320|{yt_key}"),
+            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"ytdl|best|{yt_key}"),
         ]]
         await query.edit_message_text(
             f"🎵 *{title}*\n\nکیفیت رو انتخاب کن:",
@@ -131,15 +137,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data.startswith("dl|"):
-        # dl|quality|kind|spotify_url
-        parts = data.split("|", 3)
-        quality, kind, url = parts[1], parts[2], parts[3]
+        # dl|quality|sp_key
+        parts = data.split("|", 2)
+        quality, sp_key = parts[1], parts[2]
+        stored = context.bot_data.get(sp_key)
+        if not stored:
+            await query.edit_message_text("❌ لینک منقضی شده. دوباره بفرست.")
+            return
+        url, kind = stored["url"], stored["kind"]
         await run_download(update, context, url=url, kind=kind, quality=quality, is_spotify=True)
 
     elif data.startswith("ytdl|"):
-        # ytdl|quality|yt_url
+        # ytdl|quality|yt_key
         parts = data.split("|", 2)
-        quality, url = parts[1], parts[2]
+        quality, yt_key = parts[1], parts[2]
+        stored = context.bot_data.get(yt_key)
+        if not stored:
+            await query.edit_message_text("❌ لینک منقضی شده. دوباره جستجو کن.")
+            return
+        url = stored["url"]
         await run_download(update, context, url=url, kind="track", quality=quality, is_spotify=False)
 
 
