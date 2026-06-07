@@ -243,19 +243,43 @@ class Downloader:
 
     # ── آلبوم / پلی‌لیست ─────────────────────────────────────────────────────
     async def get_collection_tracks(self, url: str, kind: str) -> list[str]:
-        """لیست لینک‌های آهنگ‌های یک آلبوم/پلی‌لیست — از صفحه عمومی اسپاتیفای"""
+        """
+        لیست آهنگ‌های پلی‌لیست یا آلبوم از صفحه embed اسپاتیفای.
+        بدون نیاز به توکن یا API key — فقط parse صفحه عمومی embed.
+        """
         loop = asyncio.get_event_loop()
+        sp_id = re.search(r'spotify\.com/(?:album|playlist)/([A-Za-z0-9]+)', url)
+        if not sp_id:
+            return []
+        sp_id = sp_id.group(1)
 
         def _do():
-            try:
-                from spotdl.types.song import Song
-                from spotdl.utils.spotify import SpotifyClient
-                SpotifyClient.init(client_id="", client_secret="", use_official_api=False)
-                songs = Song.list_from_url(url)
-                return [s.url for s in songs]
-            except Exception as e:
-                logger.error(f"Collection fetch failed: {e}")
-                return []
+            import requests as req_lib
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            embed_url = f"https://open.spotify.com/embed/{kind}/{sp_id}"
+            r = req_lib.get(embed_url, headers=headers, timeout=12)
+            r.raise_for_status()
+
+            m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+            if not m:
+                raise RuntimeError("نتونستم داده‌های embed اسپاتیفای رو پیدا کنم")
+
+            data = json.loads(m.group(1))
+            track_list = data["props"]["pageProps"]["state"]["data"]["entity"]["trackList"]
+
+            tracks = []
+            for t in track_list:
+                uri = t.get("uri", "")
+                # uri format: "spotify:track:ID"
+                parts = uri.split(":")
+                if len(parts) == 3 and parts[1] == "track":
+                    tracks.append(f"https://open.spotify.com/track/{parts[2]}")
+
+            logger.info(f"Found {len(tracks)} tracks in {kind} {sp_id}")
+            return tracks
 
         return await loop.run_in_executor(None, _do)
 
