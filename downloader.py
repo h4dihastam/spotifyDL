@@ -9,14 +9,12 @@ downloader.py
 import os
 import re
 import asyncio
-import aiohttp
 import tempfile
 import logging
 from pathlib import Path
 from typing import Optional
 
 import yt_dlp
-from spotdl import Spotdl
 from spotdl.types.song import Song
 from spotdl.utils.spotify import SpotifyClient
 
@@ -27,10 +25,6 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 # ── spotdl بدون API رسمی اسپاتیفای ──────────────────────────────────────────
 def _init_spotdl():
-    """
-    spotdl از spotipyfree/spotapi استفاده می‌کنه که نیازی به
-    client_id/secret نداره — use_official_api=False
-    """
     SpotifyClient.init(
         client_id="",
         client_secret="",
@@ -44,7 +38,6 @@ class Downloader:
 
     # ── جستجو ────────────────────────────────────────────────────────────────
     async def search(self, query: str, limit: int = 5) -> list:
-        """جستجو با yt-dlp (بدون هیچ API)"""
         loop = asyncio.get_event_loop()
 
         def _do():
@@ -74,50 +67,50 @@ class Downloader:
 
     # ── دانلود یک آهنگ ───────────────────────────────────────────────────────
     async def download_one(self, url: str, quality: str, is_spotify: bool) -> dict:
-        """
-        is_spotify=True  → ابتدا با spotdl متادیتا می‌گیریم، بعد دانلود
-        is_spotify=False → مستقیم با yt-dlp از یوتیوب
-        """
         loop = asyncio.get_event_loop()
-
         if is_spotify:
             return await loop.run_in_executor(None, self._spotdl_download, url, quality)
         else:
             return await loop.run_in_executor(None, self._ytdlp_download, url, quality, {})
 
     def _spotdl_download(self, spotify_url: str, quality: str) -> dict:
-        """دانلود با spotdl (متادیتا از اسپاتیفای بدون API رسمی + دانلود از YT Music)"""
         try:
-            # دریافت اطلاعات آهنگ
             song = Song.from_url(spotify_url)
             metadata = {
                 "title": song.name,
                 "artist": song.artist,
                 "album": song.album_name or "",
                 "cover_url": song.cover_url,
+                "lyrics": song.lyrics or "",
             }
-            # جستجو در یوتیوب با اسم آهنگ
             search_q = f"{song.name} {song.artist} audio"
-            return self._ytdlp_download(
-                f"ytsearch1:{search_q}", quality, metadata
-            )
+            result = self._ytdlp_download(f"ytsearch1:{search_q}", quality, metadata)
+            # اگه لیریک از spotdl گرفتیم، توی نتیجه بذار
+            if not result.get("lyrics") and metadata.get("lyrics"):
+                result["lyrics"] = metadata["lyrics"]
+            return result
         except Exception as e:
             logger.error(f"spotdl error: {e}")
-            # fallback: بدون متادیتا
             return self._ytdlp_download(spotify_url, quality, {})
 
     def _ytdlp_download(self, url: str, quality: str, metadata: dict) -> dict:
-        """دانلود با yt-dlp"""
-        audio_quality = "320" if quality == "320" else "0"
+        if quality == "320":
+            audio_quality = "320"
+        elif quality == "128":
+            audio_quality = "128"
+        else:
+            audio_quality = "192"
+
         safe = re.sub(r'[\\/*?:"<>|]', "_", metadata.get("title", "audio"))
         out_tmpl = str(DOWNLOAD_DIR / f"{safe}_%(id)s.%(ext)s")
 
         ydl_opts = {
-            "format": "bestaudio/best",
+            "format": "bestaudio[acodec!=opus]/bestaudio/best",
             "outtmpl": out_tmpl,
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
+            "ignoreerrors": False,
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
@@ -126,36 +119,73 @@ class Downloader:
         }
 
         downloaded_path = None
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if "entries" in info:
-                info = info["entries"][0]
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if info is None:
+                    return {"success": False, "error": "اطلاعاتی دریافت نشد (احتمالاً DRM)"}
+                if "entries" in info:
+                    info = info["entries"][0]
 
-            # پیدا کردن فایل MP3
-            base = Path(ydl.prepare_filename(info)).stem
-            for f in DOWNLOAD_DIR.glob(f"{base}*.mp3"):
-                downloaded_path = str(f)
-                break
-            if not downloaded_path:
-                # fallback search
-                vid_id = info.get("id", "")
-                for f in DOWNLOAD_DIR.glob(f"*{vid_id}*.mp3"):
+                base = Path(ydl.prepare_filename(info)).stem
+                for f in DOWNLOAD_DIR.glob(f"{base}*.mp3"):
                     downloaded_path = str(f)
                     break
+                if not downloaded_path:
+                    vid_id = info.get("id", "")
+                    for f in DOWNLOAD_DIR.glob(f"*{vid_id}*.mp3"):
+                        downloaded_path = str(f)
+                        break
 
-            if not downloaded_path:
-                return {"success": False, "error": "فایل MP3 پیدا نشد"}
+                if not downloaded_path:
+                    return {"success": False, "error": "فایل MP3 پیدا نشد"}
 
-            # اگه متادیتا نداشتیم از yt-dlp می‌گیریم
-            if not metadata.get("title"):
-                title = info.get("title", "Unknown")
-                parts = title.split(" - ", 1)
-                metadata = {
-                    "title": parts[1].strip() if len(parts) == 2 else title,
-                    "artist": parts[0].strip() if len(parts) == 2 else info.get("uploader", ""),
-                    "album": "",
-                    "cover_url": info.get("thumbnail"),
-                }
+                if not metadata.get("title"):
+                    title = info.get("title", "Unknown")
+                    parts = title.split(" - ", 1)
+                    metadata = {
+                        "title": parts[1].strip() if len(parts) == 2 else title,
+                        "artist": parts[0].strip() if len(parts) == 2 else info.get("uploader", ""),
+                        "album": "",
+                        "cover_url": info.get("thumbnail"),
+                        "lyrics": "",
+                    }
+
+        except yt_dlp.utils.DownloadError as e:
+            err = str(e)
+            if "DRM" in err or "drm" in err.lower():
+                logger.warning(f"DRM detected, retrying with different search: {url}")
+                # تلاش دوباره با جستجوی مستقیم
+                title_q = metadata.get("title", "")
+                artist_q = metadata.get("artist", "")
+                if title_q:
+                    fallback_q = f"ytsearch1:{title_q} {artist_q} lyrics audio"
+                    ydl_opts2 = dict(ydl_opts)
+                    ydl_opts2["format"] = "bestaudio/best"
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts2) as ydl2:
+                            info2 = ydl2.extract_info(fallback_q, download=True)
+                            if info2 and "entries" in info2:
+                                info2 = info2["entries"][0]
+                            if info2:
+                                base2 = Path(ydl2.prepare_filename(info2)).stem
+                                for f in DOWNLOAD_DIR.glob(f"{base2}*.mp3"):
+                                    downloaded_path = str(f)
+                                    break
+                                if not downloaded_path:
+                                    vid_id2 = info2.get("id", "")
+                                    for f in DOWNLOAD_DIR.glob(f"*{vid_id2}*.mp3"):
+                                        downloaded_path = str(f)
+                                        break
+                    except Exception as e2:
+                        logger.error(f"DRM fallback also failed: {e2}")
+                        return {"success": False, "error": "محتوا DRM داره و دانلود ممکن نیست"}
+                    if not downloaded_path:
+                        return {"success": False, "error": "فایل MP3 پیدا نشد (بعد از DRM retry)"}
+                else:
+                    return {"success": False, "error": "محتوا DRM داره و دانلود ممکن نیست"}
+            else:
+                return {"success": False, "error": str(e)[:300]}
 
         # اضافه کردن متادیتا به MP3
         thumb_path = None
@@ -170,18 +200,35 @@ class Downloader:
             "title": metadata.get("title", ""),
             "artist": metadata.get("artist", ""),
             "album": metadata.get("album", ""),
+            "lyrics": metadata.get("lyrics", ""),
         }
 
-    # ── آلبوم / پلی‌لیست ─────────────────────────────────────────────────────
-    async def get_collection_tracks(self, url: str, kind: str) -> list[str]:
-        """لیست URL آهنگ‌های یک آلبوم یا پلی‌لیست اسپاتیفای"""
+    # ── لیریک ────────────────────────────────────────────────────────────────
+    async def fetch_lyrics(self, title: str, artist: str) -> str:
+        """جستجوی متن آهنگ با syncedlyrics"""
         loop = asyncio.get_event_loop()
 
         def _do():
-            if kind == "album":
-                songs = Song.list_from_url(url)   # spotdl
-            else:
-                songs = Song.list_from_url(url)
+            try:
+                import syncedlyrics
+                query = f"{title} {artist}".strip()
+                lrc = syncedlyrics.search(query, plain_only=True)
+                if lrc:
+                    # حذف تایم‌استمپ‌های [mm:ss.xx]
+                    clean = re.sub(r'\[\d+:\d+\.\d+\]', '', lrc).strip()
+                    return clean[:4000]
+            except Exception as e:
+                logger.warning(f"Lyrics fetch failed: {e}")
+            return ""
+
+        return await loop.run_in_executor(None, _do)
+
+    # ── آلبوم / پلی‌لیست ─────────────────────────────────────────────────────
+    async def get_collection_tracks(self, url: str, kind: str) -> list[str]:
+        loop = asyncio.get_event_loop()
+
+        def _do():
+            songs = Song.list_from_url(url)
             return [s.url for s in songs]
 
         return await loop.run_in_executor(None, _do)
@@ -200,7 +247,7 @@ class Downloader:
     def _embed_tags(self, mp3_path: str, meta: dict, thumb_path: Optional[str]):
         try:
             from mutagen.mp3 import MP3
-            from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC
+            from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, USLT
             audio = MP3(mp3_path, ID3=ID3)
             try: audio.add_tags()
             except: pass
@@ -208,6 +255,7 @@ class Downloader:
             if meta.get("title"):  t.add(TIT2(encoding=3, text=meta["title"]))
             if meta.get("artist"): t.add(TPE1(encoding=3, text=meta["artist"]))
             if meta.get("album"):  t.add(TALB(encoding=3, text=meta["album"]))
+            if meta.get("lyrics"): t.add(USLT(encoding=3, lang="eng", desc="", text=meta["lyrics"]))
             if thumb_path and Path(thumb_path).exists():
                 with open(thumb_path, "rb") as img:
                     t.add(APIC(encoding=3, mime="image/jpeg", type=3,

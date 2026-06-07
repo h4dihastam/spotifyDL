@@ -71,7 +71,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = [[
             InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{key}"),
-            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"dl|best|{key}"),
+            InlineKeyboardButton("🔸 128kbps", callback_data=f"dl|128|{key}"),
         ]]
         await update.message.reply_text(
             f"{emoji} *{label}* شناسایی شد.\nکیفیت دانلود رو انتخاب کن:",
@@ -128,7 +128,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = [[
             InlineKeyboardButton("🔹 320kbps", callback_data=f"ytdl|320|{yt_key}"),
-            InlineKeyboardButton("🔸 بهترین کیفیت", callback_data=f"ytdl|best|{yt_key}"),
+            InlineKeyboardButton("🔸 128kbps", callback_data=f"ytdl|128|{yt_key}"),
         ]]
         await query.edit_message_text(
             f"🎵 *{title}*\n\nکیفیت رو انتخاب کن:",
@@ -162,7 +162,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def run_download(update, context, url, kind, quality, is_spotify):
     query = update.callback_query
     chat_id = query.message.chat_id
-    q_label = "320kbps" if quality == "320" else "بهترین کیفیت"
+    q_label = "320kbps" if quality == "320" else "128kbps"
     type_label = {"track": "آهنگ", "album": "آلبوم", "playlist": "پلی‌لیست"}.get(kind, kind)
 
     await query.edit_message_text(f"⏳ دانلود {type_label} با کیفیت {q_label}...")
@@ -220,11 +220,25 @@ async def send_audio(bot, chat_id, result):
     finally:
         if thumb:
             thumb.close()
-        # cleanup
         for p in [result.get("path"), result.get("thumb")]:
             if p:
                 try: os.unlink(p)
                 except: pass
+
+    # ارسال لیریک
+    lyrics = result.get("lyrics", "").strip()
+    if not lyrics:
+        title = result.get("title", "")
+        artist = result.get("artist", "")
+        if title:
+            lyrics = await dl.fetch_lyrics(title, artist)
+
+    if lyrics:
+        header = f"📝 *متن آهنگ — {result.get('title', '')}*\n\n"
+        full = header + lyrics
+        # تلگرام حداکثر 4096 کاراکتر
+        for i in range(0, len(full), 4000):
+            await bot.send_message(chat_id, full[i:i+4000], parse_mode="Markdown")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
