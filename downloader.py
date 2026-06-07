@@ -33,28 +33,41 @@ _SAFE_FORMAT = (
 )
 
 
-def _oembed_metadata(spotify_url: str) -> dict:
-    """گرفتن عنوان و آرتیست از Spotify oEmbed (بدون API key)"""
+def _embed_track_metadata(spotify_url: str) -> dict:
+    """
+    گرفتن متادیتای دقیق آهنگ از صفحه embed اسپاتیفای.
+    عنوان، اسم واقعی خواننده، و تصویر کاور.
+    """
     try:
-        enc = urllib.parse.quote(spotify_url, safe="")
-        req = urllib.request.Request(
-            f"https://open.spotify.com/oembed?url={enc}",
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-        with urllib.request.urlopen(req, timeout=8) as r:
-            data = json.loads(r.read())
-        title_full = data.get("title", "")
-        # معمولاً فرمت "Song - Artist" یا فقط "Song" هست
-        parts = title_full.split(" - ", 1)
-        return {
-            "title": parts[0].strip() if parts else title_full,
-            "artist": parts[1].strip() if len(parts) == 2 else data.get("provider_name", ""),
-            "album": "",
-            "cover_url": data.get("thumbnail_url", ""),
-            "lyrics": "",
+        import requests as req_lib
+        m = re.search(r'spotify\.com/track/([A-Za-z0-9]+)', spotify_url)
+        if not m:
+            return {}
+        track_id = m.group(1)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
+        r = req_lib.get(f"https://open.spotify.com/embed/track/{track_id}", headers=headers, timeout=10)
+        r.raise_for_status()
+        next_m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+        if not next_m:
+            return {}
+        entity = json.loads(next_m.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+
+        title = entity.get("title", "")
+        artists = entity.get("artists") or []
+        artist = ", ".join(a["name"] for a in artists if a.get("name"))
+        cover_url = ""
+        vi = entity.get("visualIdentity") or {}
+        images = vi.get("image") or []
+        if images:
+            # بزرگترین تصویر
+            best = max(images, key=lambda x: x.get("maxWidth") or 0)
+            cover_url = best.get("url", "")
+
+        return {"title": title, "artist": artist, "album": "", "cover_url": cover_url, "lyrics": ""}
     except Exception as e:
-        logger.warning(f"oEmbed failed: {e}")
+        logger.warning(f"embed track metadata failed: {e}")
         return {}
 
 
@@ -89,25 +102,23 @@ class Downloader:
         return await loop.run_in_executor(None, _do)
 
     # ── دانلود یک آهنگ ───────────────────────────────────────────────────────
-    async def download_one(self, url: str, quality: str, is_spotify: bool) -> dict:
+    async def download_one(self, url: str, quality: str, is_spotify: bool, prefetch: dict = None) -> dict:
         loop = asyncio.get_event_loop()
         if is_spotify:
-            return await loop.run_in_executor(None, self._spotify_download, url, quality)
+            return await loop.run_in_executor(None, self._spotify_download, url, quality, prefetch)
         else:
-            return await loop.run_in_executor(None, self._try_download_url, url, quality, {})
+            return await loop.run_in_executor(None, self._try_download_url, url, quality, prefetch or {})
 
-    def _spotify_download(self, spotify_url: str, quality: str) -> dict:
-        """متادیتا از oEmbed، دانلود از یوتیوب با چند تلاش"""
-        metadata = _oembed_metadata(spotify_url)
+    def _spotify_download(self, spotify_url: str, quality: str, prefetch: dict = None) -> dict:
+        """متادیتا از embed page اسپاتیفای، دانلود از یوتیوب"""
+        metadata = prefetch if prefetch else _embed_track_metadata(spotify_url)
 
-        if metadata.get("title"):
-            search_q = f"{metadata['title']} {metadata.get('artist', '')} audio".strip()
-        else:
-            # fallback خیلی ضعیف — فقط اسم فایل از URL
-            search_q = re.search(r"/track/([A-Za-z0-9]+)", spotify_url)
-            search_q = search_q.group(1) if search_q else "music"
-            metadata = {"title": "", "artist": "", "album": "", "cover_url": "", "lyrics": ""}
+        if not metadata.get("title"):
+            # fallback: فقط ID
+            m = re.search(r"/track/([A-Za-z0-9]+)", spotify_url)
+            metadata = {"title": m.group(1) if m else "track", "artist": "", "album": "", "cover_url": "", "lyrics": ""}
 
+        search_q = f"{metadata['title']} {metadata.get('artist', '')} audio".strip()
         logger.info(f"Searching YouTube for: {search_q}")
         return self._search_and_download(search_q, quality, metadata)
 
@@ -242,10 +253,11 @@ class Downloader:
         return await loop.run_in_executor(None, _do)
 
     # ── آلبوم / پلی‌لیست ─────────────────────────────────────────────────────
-    async def get_collection_tracks(self, url: str, kind: str) -> list[str]:
+    async def get_collection_tracks(self, url: str, kind: str) -> list[dict]:
         """
-        لیست آهنگ‌های پلی‌لیست یا آلبوم از صفحه embed اسپاتیفای.
-        بدون نیاز به توکن یا API key — فقط parse صفحه عمومی embed.
+        لیست کامل آهنگ‌های پلی‌لیست یا آلبوم از صفحه embed اسپاتیفای.
+        از offset پیجیناسیون می‌کنه تا همه آهنگ‌ها رو بگیره.
+        هر آیتم: {url, title, artist, cover_url}
         """
         loop = asyncio.get_event_loop()
         sp_id = re.search(r'spotify\.com/(?:album|playlist)/([A-Za-z0-9]+)', url)
@@ -259,26 +271,60 @@ class Downloader:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            embed_url = f"https://open.spotify.com/embed/{kind}/{sp_id}"
-            r = req_lib.get(embed_url, headers=headers, timeout=12)
-            r.raise_for_status()
-
-            m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
-            if not m:
-                raise RuntimeError("نتونستم داده‌های embed اسپاتیفای رو پیدا کنم")
-
-            data = json.loads(m.group(1))
-            track_list = data["props"]["pageProps"]["state"]["data"]["entity"]["trackList"]
-
             tracks = []
-            for t in track_list:
-                uri = t.get("uri", "")
-                # uri format: "spotify:track:ID"
-                parts = uri.split(":")
-                if len(parts) == 3 and parts[1] == "track":
-                    tracks.append(f"https://open.spotify.com/track/{parts[2]}")
+            seen_uris = set()
+            offset = 0
 
-            logger.info(f"Found {len(tracks)} tracks in {kind} {sp_id}")
+            while True:
+                embed_url = f"https://open.spotify.com/embed/{kind}/{sp_id}?offset={offset}"
+                r = req_lib.get(embed_url, headers=headers, timeout=12)
+                r.raise_for_status()
+
+                m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+                if not m:
+                    break
+
+                data = json.loads(m.group(1))
+                track_list = data["props"]["pageProps"]["state"]["data"]["entity"].get("trackList", [])
+
+                new_this_page = 0
+                for t in track_list:
+                    uri = t.get("uri", "")
+                    parts = uri.split(":")
+                    if len(parts) != 3 or parts[1] != "track":
+                        continue
+                    if uri in seen_uris:
+                        continue
+                    seen_uris.add(uri)
+                    new_this_page += 1
+
+                    track_id = parts[2]
+                    artist = t.get("subtitle", "")
+                    cover_url = ""
+                    vi = t.get("visualIdentity") or {}
+                    imgs = vi.get("image") or []
+                    if imgs:
+                        best = max(imgs, key=lambda x: x.get("maxWidth") or 0)
+                        cover_url = best.get("url", "")
+
+                    tracks.append({
+                        "url": f"https://open.spotify.com/track/{track_id}",
+                        "title": t.get("title", ""),
+                        "artist": artist,
+                        "cover_url": cover_url,
+                        "album": "",
+                        "lyrics": "",
+                    })
+
+                logger.info(f"offset={offset}: got {len(track_list)} items, {new_this_page} new — total {len(tracks)}")
+
+                # اگه هیچ آهنگ جدیدی نداشت یعنی به آخر رسیدیم
+                if new_this_page == 0:
+                    break
+
+                offset += 50
+
+            logger.info(f"Total tracks fetched from {kind} {sp_id}: {len(tracks)}")
             return tracks
 
         return await loop.run_in_executor(None, _do)
