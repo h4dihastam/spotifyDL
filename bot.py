@@ -218,6 +218,9 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Bot started...")
+    # fix برای Python 3.12+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
