@@ -130,6 +130,7 @@ class Downloader:
             "no_warnings": True,
             "extract_flat": True,
             "skip_download": True,
+            "extractor_args": {"youtube": {"player_client": ["ios"]}},
         }
         entries = []
         try:
@@ -170,6 +171,7 @@ class Downloader:
             "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": False,
+            "extractor_args": {"youtube": {"player_client": ["ios"]}},
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
