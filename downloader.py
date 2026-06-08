@@ -289,52 +289,161 @@ class Downloader:
                 logger.info("YouTube Music download succeeded")
                 return result
 
-        # ── RadioJavan fallback (موزیک فارسی) ────────────────────────────────
-        logger.info(f"Trying RadioJavan for: {query}")
-        rj_result = self._radiojavan_download(query, quality, metadata)
-        if rj_result["success"]:
-            return rj_result
+        # ── سایت‌های موزیک ایرانی (jenabmusic, avalmusic, remixbaz, ...) ────────
+        logger.info(f"Trying Persian music sites for: {query}")
+        ps_result = self._persian_sites_download(query, quality, metadata)
+        if ps_result["success"]:
+            return ps_result
 
-        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، RadioJavan)"}
+        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، سایت‌های موزیک ایرانی)"}
 
-    def _radiojavan_download(self, query: str, quality: str, metadata: dict) -> dict:
-        """جستجو در RadioJavan و دانلود مستقیم از لینک MP3"""
+    def _persian_sites_download(self, query: str, quality: str, metadata: dict) -> dict:
+        """
+        جستجو در سایت‌های دانلود موزیک ایرانی و دانلود مستقیم MP3.
+        ترتیب: jenabmusic → avalmusic → remixbaz → sevilmusics → radiojavan
+        """
         import requests as req_lib
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.radiojavan.com/",
+            "Accept-Language": "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": "https://www.google.com/",
         }
-        try:
-            r = req_lib.get(
-                f"https://www.radiojavan.com/search?query={urllib.parse.quote(query)}&type=mp3",
-                headers=headers, timeout=12
-            )
-            r.raise_for_status()
-            # استخراج لینک‌های آهنگ از HTML
-            song_slugs = re.findall(r'href=["\'](?:/mp3s/mp3/|/song/)([^"\'?]+)["\']', r.text)
-            if not song_slugs:
-                logger.info("RadioJavan: no songs found in search results")
-                return {"success": False, "error": "RadioJavan: نتیجه‌ای پیدا نشد"}
-        except Exception as e:
-            logger.warning(f"RadioJavan search request failed: {e}")
-            return {"success": False, "error": f"RadioJavan: خطا در جستجو"}
 
-        seen = set()
-        for slug in song_slugs:
-            if slug in seen:
+        # (نام سایت، آدرس جستجو)
+        sites = [
+            ("jenabmusic",  "https://jenabmusic.com/?s={q}"),
+            ("avalmusic",   "https://avalmusic.com/?s={q}"),
+            ("remixbaz",    "https://remixbaz.com/?s={q}"),
+            ("sevilmusics", "https://sevilmusics.com/?s={q}"),
+        ]
+
+        encoded = urllib.parse.quote(query)
+
+        for site_name, url_tpl in sites:
+            search_url = url_tpl.format(q=encoded)
+            try:
+                sr = req_lib.get(search_url, headers=headers, timeout=12)
+                if sr.status_code != 200:
+                    logger.info(f"{site_name}: HTTP {sr.status_code}")
+                    continue
+            except Exception as e:
+                logger.warning(f"{site_name}: search request failed: {e}")
                 continue
-            seen.add(slug)
-            rj_url = f"https://www.radiojavan.com/mp3s/mp3/{slug}"
-            logger.info(f"RadioJavan: trying {rj_url}")
-            result = self._try_download_url(rj_url, quality, metadata)
-            if result["success"]:
-                logger.info(f"RadioJavan download succeeded: {slug}")
-                return result
-            if len(seen) >= 3:
-                break
 
-        return {"success": False, "error": "RadioJavan: دانلود ناموفق بود"}
+            # ── استخراج لینک‌های صفحه آهنگ ──────────────────────────────────
+            domain = search_url.split("/")[2]
+            raw_links = re.findall(
+                rf'href=["\']((https?://)?{re.escape(domain)}/[^"\'#?]+)["\']',
+                sr.text
+            )
+            seen_links: set = set()
+            song_pages = []
+            skip_parts = ("?s=", "/category/", "/tag/", "/page/", "/author/",
+                          "/feed/", "/wp-", ".css", ".js", ".png", ".jpg")
+            for groups in raw_links:
+                link = groups[0]
+                if not link.startswith("http"):
+                    link = f"https://{domain}{link}"
+                if link in seen_links or link == f"https://{domain}/":
+                    continue
+                if any(p in link for p in skip_parts):
+                    continue
+                seen_links.add(link)
+                song_pages.append(link)
+                if len(song_pages) >= 6:
+                    break
+
+            logger.info(f"{site_name}: found {len(song_pages)} candidate pages")
+
+            for song_page in song_pages:
+                try:
+                    pr = req_lib.get(song_page, headers={**headers, "Referer": search_url},
+                                     timeout=12)
+                    if pr.status_code != 200:
+                        continue
+
+                    # ── پیدا کردن لینک مستقیم MP3 ────────────────────────────
+                    mp3_links = re.findall(
+                        r'(?:href|src|data-src|data-url|data-link)=["\']'
+                        r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
+                        pr.text, re.IGNORECASE
+                    )
+                    # برخی سایت‌ها لینک رو در onclick یا JS می‌ذارن
+                    if not mp3_links:
+                        mp3_links = re.findall(
+                            r'["\']?(https?://[^\s"\'<>]+\.mp3)["\']?',
+                            pr.text, re.IGNORECASE
+                        )
+
+                    if not mp3_links:
+                        logger.info(f"{site_name}: no MP3 link on {song_page}")
+                        continue
+
+                    for mp3_url in dict.fromkeys(mp3_links)[:3]:
+                        logger.info(f"{site_name}: trying MP3 {mp3_url[:80]}")
+                        result = self._download_direct_mp3(
+                            mp3_url, metadata,
+                            referer=song_page, session_headers=headers
+                        )
+                        if result["success"]:
+                            logger.info(f"{site_name}: download succeeded")
+                            return result
+
+                except Exception as e:
+                    logger.warning(f"{site_name}: error on {song_page}: {e}")
+                    continue
+
+        return {"success": False, "error": "سایت‌های موزیک ایرانی: نتیجه‌ای پیدا نشد"}
+
+    def _download_direct_mp3(self, url: str, metadata: dict,
+                              referer: str = "", session_headers: dict = None) -> dict:
+        """دانلود مستقیم فایل MP3 از URL و embed تگ‌ها"""
+        import requests as req_lib
+
+        safe_title = re.sub(r'[\\/*?:"<>|]', "_", metadata.get("title") or "audio")
+        mp3_path = str(DOWNLOAD_DIR / f"{safe_title}_direct.mp3")
+
+        hdrs = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            **(session_headers or {}),
+        }
+        if referer:
+            hdrs["Referer"] = referer
+
+        try:
+            with req_lib.get(url, headers=hdrs, stream=True, timeout=60, allow_redirects=True) as r:
+                r.raise_for_status()
+                ct = r.headers.get("Content-Type", "")
+                if "text/html" in ct:
+                    return {"success": False, "error": "لینک MP3 به HTML ریدایرکت شد"}
+                with open(mp3_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+
+            size = Path(mp3_path).stat().st_size
+            if size < 100_000:
+                Path(mp3_path).unlink(missing_ok=True)
+                return {"success": False, "error": f"فایل دانلودی خیلی کوچیک بود ({size} bytes)"}
+
+        except Exception as e:
+            return {"success": False, "error": f"دانلود مستقیم ناموفق: {str(e)[:150]}"}
+
+        thumb_path = None
+        if metadata.get("cover_url"):
+            thumb_path = self._download_cover(metadata["cover_url"], safe_title)
+        self._embed_tags(mp3_path, metadata, thumb_path)
+
+        return {
+            "success": True,
+            "path": mp3_path,
+            "thumb": thumb_path,
+            "title": metadata.get("title", ""),
+            "artist": metadata.get("artist", ""),
+            "album": metadata.get("album", ""),
+            "lyrics": metadata.get("lyrics", ""),
+        }
 
     def _try_download_url(self, url: str, quality: str, metadata: dict) -> dict:
         """دانلود یک URL مشخص با فرمت امن (بدون DRM)"""

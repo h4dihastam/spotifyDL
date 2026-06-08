@@ -1,0 +1,284 @@
+2026-06-08T15:49:04.947965302Z 2026-06-08 15:49:04,947 - downloader - WARNING - Skipping gKsLpuVlSdI: ERROR: [youtube] gKsLpuVlSdI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:06.654189233Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:06.944210652Z 2026-06-08 15:49:06,943 - downloader - INFO - No results for 'Danse macabre in G Minor, Op. 40 Camille Saint-Saëns, Slovak Radio Symphony Orchestra, Keith Clark', trying next query...
+2026-06-08T15:49:06.944238822Z 2026-06-08 15:49:06,944 - downloader - INFO - Searching YouTube for: Danse macabre in G Minor, Op. 40 official audio
+2026-06-08T15:49:07.246780135Z ERROR: [youtube] tAgN9ST0U2o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:07.348256565Z 2026-06-08 15:49:07,346 - downloader - WARNING - Skipping tAgN9ST0U2o: ERROR: [youtube] tAgN9ST0U2o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:09.750054109Z 2026-06-08 15:49:09,749 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:49:11.944247739Z ERROR: [youtube] W90_adcdu54: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:11.946866632Z 2026-06-08 15:49:11,946 - downloader - WARNING - Skipping W90_adcdu54: ERROR: [youtube] W90_adcdu54: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:14.755722522Z ERROR: [youtube] MVKWpij3bhw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:14.84380295Z 2026-06-08 15:49:14,757 - downloader - WARNING - Skipping MVKWpij3bhw: ERROR: [youtube] MVKWpij3bhw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:18.944337748Z ERROR: [youtube] 7FzQDPKUaCk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:19.048554314Z 2026-06-08 15:49:19,046 - downloader - WARNING - Skipping 7FzQDPKUaCk: ERROR: [youtube] 7FzQDPKUaCk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:20.043439654Z 2026-06-08 15:49:20,043 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:49:21.754913885Z ERROR: [youtube] k1s28gmLicc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:21.950055347Z 2026-06-08 15:49:21,949 - downloader - WARNING - Skipping k1s28gmLicc: ERROR: [youtube] k1s28gmLicc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:23.249753367Z ERROR: [youtube] oJOViT8CdTw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:23.252823429Z 2026-06-08 15:49:23,252 - downloader - WARNING - Skipping oJOViT8CdTw: ERROR: [youtube] oJOViT8CdTw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:23.25285792Z 2026-06-08 15:49:23,252 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:49:23.252940202Z 2026-06-08 15:49:23,252 - downloader - INFO - Trying SoundCloud for: Summer (L'Estate) Op.8 No.2 G Minor: Presto (Tempo Impettuoso d'Estate) Baroque Festival Orchestra, Alberto Lizzio audio
+2026-06-08T15:49:27.849583096Z ERROR: [youtube] xaFgMy30Ulo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:27.851804811Z 2026-06-08 15:49:27,850 - downloader - WARNING - Skipping xaFgMy30Ulo: ERROR: [youtube] xaFgMy30Ulo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:27.851822101Z 2026-06-08 15:49:27,850 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:49:27.851826871Z 2026-06-08 15:49:27,850 - downloader - INFO - Trying SoundCloud for: Speed Run Super Mario Galaxy
+2026-06-08T15:49:30.948908168Z 2026-06-08 15:49:30,948 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:49:31.050292787Z 2026-06-08 15:49:31,050 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:49:31.743788109Z ERROR: [youtube] V6TPgwy-nRk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:31.746525024Z 2026-06-08 15:49:31,746 - downloader - WARNING - Skipping V6TPgwy-nRk: ERROR: [youtube] V6TPgwy-nRk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:34.546814516Z 2026-06-08 15:49:34,546 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:49:34.676904547Z 2026-06-08 15:49:34,676 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:49:37.448310523Z ERROR: [youtube] YyknBTm_YyM: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:37.450250292Z 2026-06-08 15:49:37,449 - downloader - WARNING - Skipping YyknBTm_YyM: ERROR: [youtube] YyknBTm_YyM: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:37.97264694Z 2026-06-08 15:49:37,972 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:49:41.751421863Z 2026-06-08 15:49:41,751 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:49:42.06152487Z ERROR: [youtube] z2v9x44lVLg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:42.146909034Z 2026-06-08 15:49:42,146 - downloader - WARNING - Skipping z2v9x44lVLg: ERROR: [youtube] z2v9x44lVLg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:47.05496741Z ERROR: [youtube] CwMMwAWAFds: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:47.057077873Z 2026-06-08 15:49:47,056 - downloader - WARNING - Skipping CwMMwAWAFds: ERROR: [youtube] CwMMwAWAFds: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:49:47.057099554Z 2026-06-08 15:49:47,057 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:49:47.057129165Z 2026-06-08 15:49:47,057 - downloader - INFO - Trying SoundCloud for: Danse macabre in G Minor, Op. 40 official audio
+2026-06-08T15:49:49.230720504Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:50.132930695Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:51.020441728Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:52.017540797Z 2026-06-08 15:49:52,017 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:49:52.132261396Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:52.95236527Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T15:49:52.954422632Z 2026-06-08 15:49:52,954 - downloader - INFO - No results for 'Danse macabre in G Minor, Op. 40 official audio', trying next query...
+2026-06-08T15:49:53.686110741Z 2026-06-08 15:49:53,685 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:49:54.051833598Z 2026-06-08 15:49:54,051 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:49:54.053092254Z 2026-06-08 15:49:54,052 - downloader - INFO - Searching YouTube for: Toccata and Fugue in D minor Johann Sebastian Bach, William McVicker audio
+2026-06-08T15:49:54.932083934Z 2026-06-08 15:49:54,931 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Lrclib
+2026-06-08T15:49:54.932123114Z 2026-06-08 15:49:54,932 - syncedlyrics - ERROR - HTTPSConnectionPool(host='lrclib.net', port=443): Read timed out. (read timeout=10)
+2026-06-08T15:49:56.255140012Z 2026-06-08 15:49:56,254 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Lrclib
+2026-06-08T15:49:56.255189153Z 2026-06-08 15:49:56,255 - syncedlyrics - ERROR - HTTPSConnectionPool(host='lrclib.net', port=443): Read timed out. (read timeout=10)
+2026-06-08T15:49:57.747868076Z 2026-06-08 15:49:57,747 - syncedlyrics - INFO - No suitable lyrics found for "Summer (L'Estate) Op.8 No.2 G Minor: Presto (Tempo Impettuoso d'Estate) Baroque Festival Orchestra, Alberto Lizzio" :(
+2026-06-08T15:49:58.104230523Z 2026-06-08 15:49:58,104 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:49:58.105203613Z 2026-06-08 15:49:58,105 - downloader - INFO - Searching YouTube for: Jazz Suite No. 2: VI. Waltz 2 Dmitri Shostakovich, Russian State Symphony Orchestra, Dmitry Yablonsky audio
+2026-06-08T15:49:59.279645164Z 2026-06-08 15:49:59,279 - syncedlyrics - INFO - No suitable lyrics found for "Speed Run Super Mario Galaxy" :(
+2026-06-08T15:49:59.705604324Z 2026-06-08 15:49:59,705 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:49:59.706766548Z 2026-06-08 15:49:59,706 - downloader - INFO - Searching YouTube for: Daddy Cool Boney M. audio
+2026-06-08T15:50:02.256446237Z 2026-06-08 15:50:02,256 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:04.450268661Z ERROR: [youtube] NnoDu-5tuzA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:04.457876195Z 2026-06-08 15:50:04,457 - downloader - WARNING - Skipping NnoDu-5tuzA: ERROR: [youtube] NnoDu-5tuzA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:08.648953181Z ERROR: [youtube] O4gQEslOKjI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:08.65137229Z 2026-06-08 15:50:08,651 - downloader - WARNING - Skipping O4gQEslOKjI: ERROR: [youtube] O4gQEslOKjI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:10.654842599Z ERROR: [youtube] ho9rZjlsyYY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:10.657011443Z 2026-06-08 15:50:10,656 - downloader - WARNING - Skipping ho9rZjlsyYY: ERROR: [youtube] ho9rZjlsyYY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:13.148789699Z ERROR: [youtube] TMKyhjuaAvU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:13.150939843Z 2026-06-08 15:50:13,150 - downloader - WARNING - Skipping TMKyhjuaAvU: ERROR: [youtube] TMKyhjuaAvU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:13.348686519Z 2026-06-08 15:50:13,348 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:15.050641035Z 2026-06-08 15:50:15,050 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 15:50:15] "HEAD / HTTP/1.1" 200 -
+2026-06-08T15:50:15.650284804Z ERROR: [youtube] 7UIHl0oJEpg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:15.653240013Z 2026-06-08 15:50:15,653 - downloader - WARNING - Skipping 7UIHl0oJEpg: ERROR: [youtube] 7UIHl0oJEpg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:18.446393392Z ERROR: [youtube] FXPZGHk0PLA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:18.453866784Z 2026-06-08 15:50:18,453 - downloader - WARNING - Skipping FXPZGHk0PLA: ERROR: [youtube] FXPZGHk0PLA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:20.542883892Z ERROR: [youtube] FYGTT7YhywA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:20.546332382Z 2026-06-08 15:50:20,545 - downloader - WARNING - Skipping FYGTT7YhywA: ERROR: [youtube] FYGTT7YhywA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:23.046420179Z ERROR: [youtube] s9BapvSoUZE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:23.049334939Z 2026-06-08 15:50:23,049 - downloader - WARNING - Skipping s9BapvSoUZE: ERROR: [youtube] s9BapvSoUZE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:23.845816685Z 2026-06-08 15:50:23,845 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:25.950769738Z ERROR: [youtube] mnqzzPZ36c8: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:25.953138506Z 2026-06-08 15:50:25,952 - downloader - WARNING - Skipping mnqzzPZ36c8: ERROR: [youtube] mnqzzPZ36c8: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:28.249848144Z ERROR: [youtube] aOKhjCM38QQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:28.348040309Z 2026-06-08 15:50:28,347 - downloader - WARNING - Skipping aOKhjCM38QQ: ERROR: [youtube] aOKhjCM38QQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:31.051851156Z ERROR: [youtube] mmCnQDUSO4I: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:31.054554861Z 2026-06-08 15:50:31,053 - downloader - WARNING - Skipping mmCnQDUSO4I: ERROR: [youtube] mmCnQDUSO4I: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:33.950991441Z ERROR: [youtube] erXG9vnN-GI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:33.953711477Z 2026-06-08 15:50:33,953 - downloader - WARNING - Skipping erXG9vnN-GI: ERROR: [youtube] erXG9vnN-GI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:33.953737147Z 2026-06-08 15:50:33,953 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:50:33.953816189Z 2026-06-08 15:50:33,953 - downloader - INFO - Trying SoundCloud for: Toccata and Fugue in D minor Johann Sebastian Bach, William McVicker audio
+2026-06-08T15:50:34.049193686Z 2026-06-08 15:50:34,048 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:36.147269371Z ERROR: [youtube] 50ObRkB7xHI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:36.15018541Z 2026-06-08 15:50:36,149 - downloader - WARNING - Skipping 50ObRkB7xHI: ERROR: [youtube] 50ObRkB7xHI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:39.552811044Z ERROR: [youtube] LWHm9m4BjjQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:39.644046377Z 2026-06-08 15:50:39,643 - downloader - WARNING - Skipping LWHm9m4BjjQ: ERROR: [youtube] LWHm9m4BjjQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:39.644070947Z 2026-06-08 15:50:39,643 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:50:39.644082518Z 2026-06-08 15:50:39,644 - downloader - INFO - Trying SoundCloud for: Jazz Suite No. 2: VI. Waltz 2 Dmitri Shostakovich, Russian State Symphony Orchestra, Dmitry Yablonsky audio
+2026-06-08T15:50:41.745780028Z 2026-06-08 15:50:41,745 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:50:43.952392359Z ERROR: [youtube] rYoALQp7BfY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:43.954793698Z 2026-06-08 15:50:43,954 - downloader - WARNING - Skipping rYoALQp7BfY: ERROR: [youtube] rYoALQp7BfY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:43.954853209Z 2026-06-08 15:50:43,954 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:50:43.95489839Z 2026-06-08 15:50:43,954 - downloader - INFO - Trying SoundCloud for: Daddy Cool Boney M. audio
+2026-06-08T15:50:44.611606999Z 2026-06-08 15:50:44,611 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:44.648547619Z 2026-06-08 15:50:44,648 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:50:46.155601782Z 2026-06-08 15:50:46,154 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:50:47.845407616Z 2026-06-08 15:50:47,845 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:50:48.756224117Z 2026-06-08 15:50:48,755 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:50:50.234775841Z 2026-06-08 15:50:50,234 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:50:50.681353902Z 2026-06-08 15:50:50,681 - syncedlyrics - INFO - Lyrics found for "Daddy Cool Boney M." on Musixmatch
+2026-06-08T15:50:51.080191894Z 2026-06-08 15:50:51,079 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:50:51.556351106Z 2026-06-08 15:50:51,556 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:50:51.557801436Z 2026-06-08 15:50:51,557 - downloader - INFO - Searching YouTube for: Forest of Illusion (From "Super Mario World") Arcade Player audio
+2026-06-08T15:50:54.810030159Z 2026-06-08 15:50:54,809 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:50:57.951584315Z ERROR: [youtube] CSer4JOqYVw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:50:57.954122817Z 2026-06-08 15:50:57,953 - downloader - WARNING - Skipping CSer4JOqYVw: ERROR: [youtube] CSer4JOqYVw: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:01.751905525Z ERROR: [youtube] I3KLhDOnbaQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:01.754289713Z 2026-06-08 15:51:01,753 - downloader - WARNING - Skipping I3KLhDOnbaQ: ERROR: [youtube] I3KLhDOnbaQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:05.006475599Z 2026-06-08 15:51:05,006 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:05.945658948Z ERROR: [youtube] ZlSFsoULd6A: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:05.948166759Z 2026-06-08 15:51:05,947 - downloader - WARNING - Skipping ZlSFsoULd6A: ERROR: [youtube] ZlSFsoULd6A: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:07.092003425Z 2026-06-08 15:51:07,091 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Lrclib
+2026-06-08T15:51:07.092038196Z 2026-06-08 15:51:07,091 - syncedlyrics - ERROR - HTTPSConnectionPool(host='lrclib.net', port=443): Read timed out. (read timeout=10)
+2026-06-08T15:51:09.185172177Z 2026-06-08 15:51:09,184 - syncedlyrics - INFO - No suitable lyrics found for "Jazz Suite No. 2: VI. Waltz 2 Dmitri Shostakovich, Russian State Symphony Orchestra, Dmitry Yablonsky" :(
+2026-06-08T15:51:10.2559996Z ERROR: [youtube] mfAbil_EVoc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:10.343792214Z 2026-06-08 15:51:10,343 - downloader - WARNING - Skipping mfAbil_EVoc: ERROR: [youtube] mfAbil_EVoc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:10.54444663Z 2026-06-08 15:51:10,544 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:51:10.758833965Z 2026-06-08 15:51:10,758 - downloader - INFO - Searching YouTube for: Mario Death (From "Super Mario World") Arcade Player audio
+2026-06-08T15:51:13.723990383Z 2026-06-08 15:51:13,723 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Megalobiz
+2026-06-08T15:51:13.724017223Z 2026-06-08 15:51:13,723 - syncedlyrics - ERROR - HTTPSConnectionPool(host='www.megalobiz.com', port=443): Read timed out. (read timeout=10)
+2026-06-08T15:51:13.843403029Z 2026-06-08 15:51:13,780 - syncedlyrics - INFO - No suitable lyrics found for "Toccata and Fugue in D minor Johann Sebastian Bach, William McVicker" :(
+2026-06-08T15:51:14.243884145Z 2026-06-08 15:51:14,243 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:51:14.247218412Z 2026-06-08 15:51:14,247 - downloader - INFO - Searching YouTube for: Starman (From "Super Mario World") Arcade Player audio
+2026-06-08T15:51:15.343532824Z 2026-06-08 15:51:15,343 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:15.64997865Z ERROR: [youtube] ZG_ZNVxvelA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:15.847185216Z 2026-06-08 15:51:15,846 - downloader - WARNING - Skipping ZG_ZNVxvelA: ERROR: [youtube] ZG_ZNVxvelA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:15.847276228Z 2026-06-08 15:51:15,846 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:51:15.852751309Z 2026-06-08 15:51:15,852 - downloader - INFO - Trying SoundCloud for: Forest of Illusion (From "Super Mario World") Arcade Player audio
+2026-06-08T15:51:22.646725504Z ERROR: [youtube] Bw98Rg79d2E: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:22.649200384Z 2026-06-08 15:51:22,648 - downloader - WARNING - Skipping Bw98Rg79d2E: ERROR: [youtube] Bw98Rg79d2E: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:23.150413447Z 2026-06-08 15:51:23,150 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:51:25.843840017Z 2026-06-08 15:51:25,843 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:25.85677905Z ERROR: [youtube] hGgoP7nZTCY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:25.944602054Z 2026-06-08 15:51:25,944 - downloader - WARNING - Skipping hGgoP7nZTCY: ERROR: [youtube] hGgoP7nZTCY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:25.949410122Z 2026-06-08 15:51:25,949 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:51:29.047923313Z ERROR: [youtube] 8yRn9PvdIaE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:29.050598237Z 2026-06-08 15:51:29,050 - downloader - WARNING - Skipping 8yRn9PvdIaE: ERROR: [youtube] 8yRn9PvdIaE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:32.650525846Z ERROR: [youtube] qVmmukF3bFo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:32.651333573Z 2026-06-08 15:51:32,651 - downloader - WARNING - Skipping qVmmukF3bFo: ERROR: [youtube] qVmmukF3bFo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:34.544911345Z ERROR: [youtube] zTHhwvTJyMU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:34.546826284Z 2026-06-08 15:51:34,546 - downloader - WARNING - Skipping zTHhwvTJyMU: ERROR: [youtube] zTHhwvTJyMU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:36.104580963Z 2026-06-08 15:51:36,104 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:36.857546951Z ERROR: [youtube] FwX4ZxWxptQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:36.952421569Z 2026-06-08 15:51:36,952 - downloader - WARNING - Skipping FwX4ZxWxptQ: ERROR: [youtube] FwX4ZxWxptQ: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:39.046005105Z ERROR: [youtube] 3g_UBnLPrfY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:39.0511713Z 2026-06-08 15:51:39,050 - downloader - WARNING - Skipping 3g_UBnLPrfY: ERROR: [youtube] 3g_UBnLPrfY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:39.143371003Z 2026-06-08 15:51:39,143 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Megalobiz
+2026-06-08T15:51:39.143391514Z 2026-06-08 15:51:39,143 - syncedlyrics - ERROR - HTTPSConnectionPool(host='www.megalobiz.com', port=443): Max retries exceeded with url: /search/all?qry=Forest+of+Illusion+(From+%22Super+Mario+World%22)+Arcade+Player&searchButton.x=0&searchButton.y=0 (Caused by NewConnectionError("HTTPSConnection(host='www.megalobiz.com', port=443): Failed to establish a new connection: [Errno 111] Connection refused"))
+2026-06-08T15:51:39.944441619Z 2026-06-08 15:51:39,943 - syncedlyrics - INFO - No suitable lyrics found for "Forest of Illusion (From "Super Mario World") Arcade Player" :(
+2026-06-08T15:51:40.709564235Z 2026-06-08 15:51:40,709 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:51:40.710615476Z 2026-06-08 15:51:40,710 - downloader - INFO - Searching YouTube for: Airship Retrogame Tributes audio
+2026-06-08T15:51:42.855557787Z ERROR: [youtube] 9pwNRLqYK0k: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:42.947379272Z 2026-06-08 15:51:42,946 - downloader - WARNING - Skipping 9pwNRLqYK0k: ERROR: [youtube] 9pwNRLqYK0k: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:45.247398035Z ERROR: [youtube] Aax1SEZESts: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:45.249529338Z 2026-06-08 15:51:45,249 - downloader - WARNING - Skipping Aax1SEZESts: ERROR: [youtube] Aax1SEZESts: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:45.249560548Z 2026-06-08 15:51:45,249 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:51:45.24961356Z 2026-06-08 15:51:45,249 - downloader - INFO - Trying SoundCloud for: Mario Death (From "Super Mario World") Arcade Player audio
+2026-06-08T15:51:46.455199395Z 2026-06-08 15:51:46,454 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:46.947584229Z 2026-06-08 15:51:46,857 - downloader - INFO - No results for 'Mario Death (From "Super Mario World") Arcade Player audio', trying next query...
+2026-06-08T15:51:46.947661101Z 2026-06-08 15:51:46,947 - downloader - INFO - Searching YouTube for: Mario Death (From "Super Mario World") Arcade Player
+2026-06-08T15:51:48.545628559Z ERROR: [youtube] CawGrFDwG8U: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:48.548752793Z 2026-06-08 15:51:48,548 - downloader - WARNING - Skipping CawGrFDwG8U: ERROR: [youtube] CawGrFDwG8U: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:48.548768343Z 2026-06-08 15:51:48,548 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:51:48.548773923Z 2026-06-08 15:51:48,548 - downloader - INFO - Trying SoundCloud for: Starman (From "Super Mario World") Arcade Player audio
+2026-06-08T15:51:49.656201404Z 2026-06-08 15:51:49,655 - downloader - INFO - No results for 'Starman (From "Super Mario World") Arcade Player audio', trying next query...
+2026-06-08T15:51:49.656226885Z 2026-06-08 15:51:49,656 - downloader - INFO - Searching YouTube for: Starman (From "Super Mario World") Arcade Player
+2026-06-08T15:51:54.446543118Z ERROR: [youtube] t3dVcVALouE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:54.544228563Z 2026-06-08 15:51:54,543 - downloader - WARNING - Skipping t3dVcVALouE: ERROR: [youtube] t3dVcVALouE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:57.354093316Z 2026-06-08 15:51:57,353 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:51:58.950156378Z ERROR: [youtube] CD9S_cY_a1I: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:51:58.952610267Z 2026-06-08 15:51:58,952 - downloader - WARNING - Skipping CD9S_cY_a1I: ERROR: [youtube] CD9S_cY_a1I: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:01.445327528Z ERROR: [youtube] qVmmukF3bFo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:01.447121565Z 2026-06-08 15:52:01,446 - downloader - WARNING - Skipping qVmmukF3bFo: ERROR: [youtube] qVmmukF3bFo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:03.146661799Z ERROR: [youtube] felW2gR-W8w: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:03.148828653Z 2026-06-08 15:52:03,148 - downloader - WARNING - Skipping felW2gR-W8w: ERROR: [youtube] felW2gR-W8w: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:06.059398166Z ERROR: [youtube] tsBstp0Py9o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:06.145487355Z 2026-06-08 15:52:06,145 - downloader - WARNING - Skipping tsBstp0Py9o: ERROR: [youtube] tsBstp0Py9o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:08.058160551Z ERROR: [youtube] 9pwNRLqYK0k: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:08.144990405Z 2026-06-08 15:52:08,144 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:52:08.149214011Z 2026-06-08 15:52:08,149 - downloader - WARNING - Skipping 9pwNRLqYK0k: ERROR: [youtube] 9pwNRLqYK0k: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:10.248401868Z ERROR: [youtube] e-cO46Qf_d0: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:10.250663194Z 2026-06-08 15:52:10,250 - downloader - WARNING - Skipping e-cO46Qf_d0: ERROR: [youtube] e-cO46Qf_d0: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:11.751019602Z ERROR: [youtube] Bw98Rg79d2E: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:11.753018733Z 2026-06-08 15:52:11,752 - downloader - WARNING - Skipping Bw98Rg79d2E: ERROR: [youtube] Bw98Rg79d2E: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:13.34930422Z ERROR: [youtube] MG4GKPCsipg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:13.351308591Z 2026-06-08 15:52:13,351 - downloader - WARNING - Skipping MG4GKPCsipg: ERROR: [youtube] MG4GKPCsipg: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:15.757177981Z ERROR: [youtube] q_8RIKOP4BI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:15.844985945Z 2026-06-08 15:52:15,844 - downloader - WARNING - Skipping q_8RIKOP4BI: ERROR: [youtube] q_8RIKOP4BI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:17.751735582Z ERROR: [youtube] zTHhwvTJyMU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:17.845167311Z 2026-06-08 15:52:17,844 - downloader - WARNING - Skipping zTHhwvTJyMU: ERROR: [youtube] zTHhwvTJyMU: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:18.348841216Z 2026-06-08 15:52:18,348 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:52:19.055617989Z ERROR: [youtube] Ft4eGM2ABKE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:19.146555257Z 2026-06-08 15:52:19,057 - downloader - WARNING - Skipping Ft4eGM2ABKE: ERROR: [youtube] Ft4eGM2ABKE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:21.651360148Z ERROR: [youtube] Ijo-FlvCJ5g: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:21.654773467Z 2026-06-08 15:52:21,654 - downloader - WARNING - Skipping Ijo-FlvCJ5g: ERROR: [youtube] Ijo-FlvCJ5g: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:21.654813918Z 2026-06-08 15:52:21,654 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:52:21.654876939Z 2026-06-08 15:52:21,654 - downloader - INFO - Trying SoundCloud for: Airship Retrogame Tributes audio
+2026-06-08T15:52:22.85656137Z 2026-06-08 15:52:22,856 - downloader - INFO - No results for 'Airship Retrogame Tributes audio', trying next query...
+2026-06-08T15:52:22.943009976Z 2026-06-08 15:52:22,942 - downloader - INFO - Searching YouTube for: Airship Retrogame Tributes
+2026-06-08T15:52:24.850270625Z ERROR: [youtube] AdVfcwU-Snc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:24.852385338Z 2026-06-08 15:52:24,852 - downloader - WARNING - Skipping AdVfcwU-Snc: ERROR: [youtube] AdVfcwU-Snc: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:24.85244043Z 2026-06-08 15:52:24,852 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:52:24.852531271Z 2026-06-08 15:52:24,852 - downloader - INFO - Trying SoundCloud for: Mario Death (From "Super Mario World") Arcade Player
+2026-06-08T15:52:26.050489526Z ERROR: [youtube] 2wt1MMgU-TE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:26.055582209Z 2026-06-08 15:52:26,053 - downloader - INFO - No results for 'Mario Death (From "Super Mario World") Arcade Player', trying next query...
+2026-06-08T15:52:26.055875355Z 2026-06-08 15:52:26,054 - downloader - INFO - Searching YouTube for: Mario Death (From "Super Mario World") official audio
+2026-06-08T15:52:26.249701294Z 2026-06-08 15:52:26,249 - downloader - WARNING - Skipping 2wt1MMgU-TE: ERROR: [youtube] 2wt1MMgU-TE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:26.254992952Z 2026-06-08 15:52:26,254 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:52:26.343147924Z 2026-06-08 15:52:26,342 - downloader - INFO - Trying SoundCloud for: Starman (From "Super Mario World") Arcade Player
+2026-06-08T15:52:27.940039506Z 2026-06-08 15:52:27,939 - downloader - INFO - No results for 'Starman (From "Super Mario World") Arcade Player', trying next query...
+2026-06-08T15:52:27.940081357Z 2026-06-08 15:52:27,939 - downloader - INFO - Searching YouTube for: Starman (From "Super Mario World") official audio
+2026-06-08T15:52:28.644261207Z 2026-06-08 15:52:28,643 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:52:35.050041319Z ERROR: [youtube] t3dVcVALouE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:35.14409787Z 2026-06-08 15:52:35,143 - downloader - WARNING - Skipping t3dVcVALouE: ERROR: [youtube] t3dVcVALouE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:37.446255617Z ERROR: [youtube] n5Fx5bWxZmE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:37.448904611Z 2026-06-08 15:52:37,448 - downloader - WARNING - Skipping n5Fx5bWxZmE: ERROR: [youtube] n5Fx5bWxZmE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:38.950807404Z ERROR: [youtube] qCMWZkI8SBo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:39.043846035Z 2026-06-08 15:52:39,043 - downloader - WARNING - Skipping qCMWZkI8SBo: ERROR: [youtube] qCMWZkI8SBo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:39.244598015Z 2026-06-08 15:52:39,244 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:52:41.355708709Z ERROR: [youtube] felW2gR-W8w: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:41.44380985Z 2026-06-08 15:52:41,443 - downloader - WARNING - Skipping felW2gR-W8w: ERROR: [youtube] felW2gR-W8w: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:43.953961545Z ERROR: [youtube] KeA2Kx0ITm0: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:44.0442375Z 2026-06-08 15:52:44,043 - downloader - WARNING - Skipping KeA2Kx0ITm0: ERROR: [youtube] KeA2Kx0ITm0: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:45.54347282Z ERROR: [youtube] 8CpBGhZZiRk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:45.550431041Z 2026-06-08 15:52:45,550 - downloader - WARNING - Skipping 8CpBGhZZiRk: ERROR: [youtube] 8CpBGhZZiRk: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:48.050127436Z ERROR: [youtube] 2_9DvcabR2s: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:48.052266819Z 2026-06-08 15:52:48,051 - downloader - WARNING - Skipping 2_9DvcabR2s: ERROR: [youtube] 2_9DvcabR2s: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:49.549107501Z ERROR: [youtube] 0GUubuhiXG4: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:49.554504551Z 2026-06-08 15:52:49,553 - downloader - WARNING - Skipping 0GUubuhiXG4: ERROR: [youtube] 0GUubuhiXG4: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:49.751225819Z 2026-06-08 15:52:49,750 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:52:51.051634519Z ERROR: [youtube] gcpbDZxi8BE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:51.053707131Z 2026-06-08 15:52:51,053 - downloader - WARNING - Skipping gcpbDZxi8BE: ERROR: [youtube] gcpbDZxi8BE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:55.545587236Z ERROR: [youtube] bEScpCmIiHM: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:55.649552119Z 2026-06-08 15:52:55,649 - downloader - WARNING - Skipping bEScpCmIiHM: ERROR: [youtube] bEScpCmIiHM: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:57.84689847Z ERROR: [youtube] kbcfsPDMvPo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:57.950358823Z 2026-06-08 15:52:57,949 - downloader - WARNING - Skipping kbcfsPDMvPo: ERROR: [youtube] kbcfsPDMvPo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:58.851172142Z ERROR: [youtube] pwTrTZxWjBA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:52:58.943904756Z 2026-06-08 15:52:58,943 - downloader - WARNING - Skipping pwTrTZxWjBA: ERROR: [youtube] pwTrTZxWjBA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:00.044001266Z 2026-06-08 15:53:00,043 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:53:02.453552391Z ERROR: [youtube] 77xVTZbulOE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:02.543408867Z 2026-06-08 15:53:02,456 - downloader - WARNING - Skipping 77xVTZbulOE: ERROR: [youtube] 77xVTZbulOE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:02.543866597Z 2026-06-08 15:53:02,543 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:53:02.543902837Z 2026-06-08 15:53:02,543 - downloader - INFO - Trying SoundCloud for: Airship Retrogame Tributes
+2026-06-08T15:53:04.544601163Z 2026-06-08 15:53:04,544 - downloader - INFO - No results for 'Airship Retrogame Tributes', trying next query...
+2026-06-08T15:53:04.553141516Z 2026-06-08 15:53:04,552 - downloader - INFO - Searching YouTube for: Airship official audio
+2026-06-08T15:53:04.946188495Z ERROR: [youtube] q7Z42X5Ir_o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:05.249935159Z ERROR: [youtube] mzlddn0Qaao: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:05.256533533Z 2026-06-08 15:53:05,256 - downloader - WARNING - Skipping q7Z42X5Ir_o: ERROR: [youtube] q7Z42X5Ir_o: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:05.256576844Z 2026-06-08 15:53:05,256 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:53:05.256642365Z 2026-06-08 15:53:05,256 - downloader - INFO - Trying SoundCloud for: Starman (From "Super Mario World") official audio
+2026-06-08T15:53:05.554025469Z 2026-06-08 15:53:05,553 - downloader - WARNING - Skipping mzlddn0Qaao: ERROR: [youtube] mzlddn0Qaao: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:05.55404463Z 2026-06-08 15:53:05,553 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T15:53:05.55405762Z 2026-06-08 15:53:05,553 - downloader - INFO - Trying SoundCloud for: Mario Death (From "Super Mario World") official audio
+2026-06-08T15:53:10.242855174Z 2026-06-08 15:53:10,230 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:53:11.74369002Z 2026-06-08 15:53:11,743 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:53:11.846577192Z 2026-06-08 15:53:11,846 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T15:53:13.850926723Z ERROR: [youtube] j6gG35Q59MA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:13.852968384Z 2026-06-08 15:53:13,852 - downloader - WARNING - Skipping j6gG35Q59MA: ERROR: [youtube] j6gG35Q59MA: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:14.690691052Z 2026-06-08 15:53:14,690 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:53:15.72864197Z 2026-06-08 15:53:15,728 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T15:53:17.947940431Z ERROR: [youtube] ipE04Rq5DYE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:17.950242018Z 2026-06-08 15:53:17,949 - downloader - WARNING - Skipping ipE04Rq5DYE: ERROR: [youtube] ipE04Rq5DYE: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:20.408440465Z 2026-06-08 15:53:20,408 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T15:53:22.84878941Z ERROR: [youtube] CZIccLakuxY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:22.850901573Z 2026-06-08 15:53:22,850 - downloader - WARNING - Skipping CZIccLakuxY: ERROR: [youtube] CZIccLakuxY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T15:53:24.432796539Z 2026-06-08 15:53:24,432 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Megalobiz
+2026-06-08T15:53:24.43284644Z 2026-06-08 15:53:24,432 - syncedlyrics - ERROR - HTTPSConnectionPool(host='www.megalobiz.com', port=443): Max retries exceeded with url: /search/all?qry=Mario+Death+(From+%22Super+Mario+World%22)+Arcade+Player&searchButton.x=0&searchButton.y=0 (Caused by NewConnectionError("HTTPSConnection(host='www.megalobiz.com', port=443): Failed to establish a new connection: [Errno 111] Connection refused"))
+2026-06-08T15:53:24.581776717Z 2026-06-08 15:53:24,581 - syncedlyrics - INFO - No suitable lyrics found for "Mario Death (From "Super Mario World") Arcade Player" :(
+2026-06-08T15:53:25.349296889Z 2026-06-08 15:53:25,349 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:53:25.350586355Z 2026-06-08 15:53:25,350 - downloader - INFO - Searching YouTube for: Makhlough Googoosh audio
+2026-06-08T15:53:26.420736869Z 2026-06-08 15:53:26,420 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Megalobiz
+2026-06-08T15:53:26.420762629Z 2026-06-08 15:53:26,420 - syncedlyrics - ERROR - HTTPSConnectionPool(host='www.megalobiz.com', port=443): Max retries exceeded with url: /search/all?qry=Starman+(From+%22Super+Mario+World%22)+Arcade+Player&searchButton.x=0&searchButton.y=0 (Caused by NewConnectionError("HTTPSConnection(host='www.megalobiz.com', port=443): Failed to establish a new connection: [Errno 111] Connection refused"))
+2026-06-08T15:53:26.566467811Z 2026-06-08 15:53:26,566 - syncedlyrics - INFO - No suitable lyrics found for "Starman (From "Super Mario World") Arcade Player" :(
+2026-06-08T15:53:26.918778073Z 2026-06-08 15:53:26,918 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T15:53:26.919857205Z 2026-06-08 15:53:26,919 - downloader - INFO - Searching YouTube for: Gole Bee Goldoon Googoosh audio
