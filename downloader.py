@@ -24,13 +24,8 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "tgbot_music"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# فرمت بدون DRM: فقط استریم‌های HTTP/HTTPS معمولی
-_SAFE_FORMAT = (
-    "bestaudio[protocol=https][acodec!=none]"
-    "/bestaudio[protocol=http][acodec!=none]"
-    "/bestaudio[acodec!=none]"
-    "/bestaudio/best"
-)
+# فرمت صوتی — از همه استریم‌های معتبر قبول می‌کنیم
+_SAFE_FORMAT = "bestaudio/best"
 
 # ── کوکی یوتیوب (برای سرورهای cloud که IP‌شون بلاکه) ─────────────────────────
 _YT_COOKIE_FILE: Optional[str] = None
