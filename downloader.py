@@ -11,6 +11,8 @@ import re
 import asyncio
 import tempfile
 import logging
+import threading
+import concurrent.futures
 import urllib.request
 import urllib.parse
 import json
@@ -346,22 +348,26 @@ class Downloader:
                       "/feed/", "/wp-", ".css", ".js", ".png", ".jpg", ".gif",
                       "/contact", "/about", "/login", "/register")
 
-        for site_name, url_tpl in sites:
-            domain = url_tpl.split("/")[2]
+        stop_event = threading.Event()
 
+        def _search_one_site(site_name: str, url_tpl: str):
+            """
+            یک سایت رو با همه query ها جستجو می‌کنه.
+            اگه MP3 پیدا کرد (mp3_url, page_url, site_name) برمی‌گردونه وگرنه None.
+            """
+            domain = url_tpl.split("/")[2]
             for q_attempt in queries_to_try:
+                if stop_event.is_set():
+                    return None
                 encoded = urllib.parse.quote(q_attempt)
                 search_url = url_tpl.format(q=encoded)
                 try:
-                    sr = req_lib.get(search_url, headers=headers, timeout=12)
+                    sr = req_lib.get(search_url, headers=headers, timeout=10)
                     if sr.status_code != 200:
-                        logger.info(f"{site_name}: HTTP {sr.status_code} for '{q_attempt}'")
                         continue
-                except Exception as e:
-                    logger.warning(f"{site_name}: search failed for '{q_attempt}': {e}")
+                except Exception:
                     continue
 
-                # ── استخراج لینک‌های صفحه آهنگ ──────────────────────────────
                 raw_links = re.findall(
                     rf'href=["\']((https?://)?{re.escape(domain)}/[^"\'#?]+)["\']',
                     sr.text
@@ -378,24 +384,24 @@ class Downloader:
                         continue
                     seen_links.add(link)
                     song_pages.append(link)
-                    if len(song_pages) >= 6:
+                    if len(song_pages) >= 5:
                         break
 
                 if not song_pages:
-                    logger.info(f"{site_name}: no song pages for '{q_attempt}'")
                     continue
 
                 logger.info(f"{site_name}: {len(song_pages)} pages for '{q_attempt}'")
 
                 for song_page in song_pages:
+                    if stop_event.is_set():
+                        return None
                     try:
                         pr = req_lib.get(song_page,
                                          headers={**headers, "Referer": search_url},
-                                         timeout=12)
+                                         timeout=10)
                         if pr.status_code != 200:
                             continue
 
-                        # ── لینک MP3: در attr ها، JS، onclick ────────────────
                         mp3_links = re.findall(
                             r'(?:href|src|data-src|data-url|data-link|data-file)=["\']'
                             r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
@@ -406,27 +412,33 @@ class Downloader:
                                 r'(https?://[^\s"\'<>]+\.mp3)',
                                 pr.text, re.IGNORECASE
                             )
-
-                        if not mp3_links:
-                            logger.info(f"{site_name}: no MP3 on {song_page}")
-                            continue
-
-                        for mp3_url in list(dict.fromkeys(mp3_links))[:3]:
-                            logger.info(f"{site_name}: MP3 → {mp3_url[:80]}")
-                            result = self._download_direct_mp3(
-                                mp3_url, metadata,
-                                referer=song_page, session_headers=headers
-                            )
-                            if result["success"]:
-                                logger.info(f"{site_name}: ✓ download succeeded")
-                                return result
-
-                    except Exception as e:
-                        logger.warning(f"{site_name}: error on {song_page}: {e}")
+                        if mp3_links:
+                            return (list(dict.fromkeys(mp3_links))[:3], song_page, site_name)
+                    except Exception:
                         continue
+            return None
 
-                # اگه با این query یه سایت کاری نداشت، بریم سراغ query بعدی
-                # (اگه نتیجه داشت ولی دانلود ناموفق بود، سراغ سایت بعدی می‌ریم)
+        # ── همه سایت‌ها رو به صورت موازی جستجو کن ───────────────────────────
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(sites)) as executor:
+            future_map = {
+                executor.submit(_search_one_site, name, tpl): name
+                for name, tpl in sites
+            }
+            for future in concurrent.futures.as_completed(future_map):
+                found = future.result()
+                if not found:
+                    continue
+                mp3_urls, page_url, site_name = found
+                stop_event.set()  # بقیه thread ها رو متوقف کن
+                for mp3_url in mp3_urls:
+                    logger.info(f"{site_name}: MP3 → {mp3_url[:80]}")
+                    result = self._download_direct_mp3(
+                        mp3_url, metadata,
+                        referer=page_url, session_headers=headers
+                    )
+                    if result["success"]:
+                        logger.info(f"{site_name}: ✓ parallel download succeeded")
+                        return result
 
         return {"success": False, "error": "سایت‌های موزیک ایرانی: نتیجه‌ای پیدا نشد"}
 
