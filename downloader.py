@@ -54,7 +54,9 @@ def _yt_base_opts() -> dict:
     """گزینه‌های پایه یوتیوب: چند player client + کوکی اگه داریم"""
     opts: dict = {
         "extractor_args": {
-            "youtube": {"player_client": ["ios", "mweb", "tv_embedded"]}
+            # ios روی cloud IP استریم DRM-protected برمی‌گردونه — حذفش می‌کنیم
+            # mweb و tv_embedded استریم HTTP معمولی برمی‌گردونن
+            "youtube": {"player_client": ["mweb", "tv_embedded", "web_creator"]}
         },
     }
     if _YT_COOKIE_FILE:
