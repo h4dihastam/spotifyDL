@@ -274,7 +274,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Bot started...")
-    asyncio.run(app.run_polling(allowed_updates=Update.ALL_TYPES))
-
+app.run_polling(allowed_updates=Update.ALL_TYPES)
 if __name__ == "__main__":
     main()
