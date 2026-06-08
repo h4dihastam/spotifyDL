@@ -26,14 +26,8 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "tgbot_music"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# فرمت صوتی — استریم‌های HTTP بدون DRM اولویت دارن
-_SAFE_FORMAT = (
-    "bestaudio[protocol^=http][vcodec=none]"
-    "/bestaudio[protocol^=https][vcodec=none]"
-    "/bestaudio[ext=webm]"
-    "/bestaudio[ext=m4a]"
-    "/bestaudio/best"
-)
+# فرمت صوتی — از ساده به پیچیده، بدون محدودیت protocol که باعث fail می‌شه
+_SAFE_FORMAT = "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
 
 # ── کوکی یوتیوب (برای سرورهای cloud که IP‌شون بلاکه) ─────────────────────────
 _YT_COOKIE_FILE: Optional[str] = None
@@ -104,7 +98,15 @@ def _embed_track_metadata(spotify_url: str) -> dict:
             best = max(images, key=lambda x: x.get("maxWidth") or 0)
             cover_url = best.get("url", "")
 
-        return {"title": title, "artist": artist, "album": "", "cover_url": cover_url, "lyrics": ""}
+        # مدت زمان آهنگ (ثانیه) — برای تشخیص preview های کوتاه
+        duration_ms = entity.get("duration") or entity.get("duration_ms") or 0
+        duration_sec = int(duration_ms / 1000) if duration_ms else 0
+
+        return {
+            "title": title, "artist": artist, "album": "",
+            "cover_url": cover_url, "lyrics": "",
+            "duration": duration_sec,
+        }
     except Exception as e:
         logger.warning(f"embed track metadata failed: {e}")
         return {}
@@ -608,6 +610,28 @@ class Downloader:
                 if "entries" in info:
                     info = info["entries"][0]
 
+                # ── تشخیص preview کوتاه (مثلاً SoundCloud) ──────────────────
+                expected_dur = metadata.get("duration", 0)  # ثانیه از Spotify
+                actual_dur   = info.get("duration") or 0
+                if expected_dur and actual_dur:
+                    ratio = actual_dur / expected_dur
+                    if ratio < 0.70:  # کمتر از ۷۰٪ → احتمالاً preview
+                        # فایل نیمه‌کاره رو حذف کن
+                        try:
+                            stem = Path(ydl.prepare_filename(info)).stem
+                            for f in DOWNLOAD_DIR.glob(f"{stem}*"):
+                                f.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                        logger.warning(
+                            f"Preview detected: {actual_dur:.0f}s vs expected {expected_dur}s "
+                            f"({ratio*100:.0f}%) — skipping {url[:60]}"
+                        )
+                        return {
+                            "success": False,
+                            "error": f"preview کوتاه ({actual_dur:.0f}s از {expected_dur}s)"
+                        }
+
                 # پیدا کردن فایل MP3
                 downloaded_path = self._find_mp3(ydl, info, safe_title)
                 if not downloaded_path:
@@ -629,6 +653,39 @@ class Downloader:
             err = str(e)
             if "DRM" in err:
                 return {"success": False, "error": "DRM"}
+            # اگه فرمت نبود، یه‌بار دیگه با bestaudio ساده امتحان می‌کنیم
+            if "format is not available" in err.lower() or "requested format" in err.lower():
+                logger.warning(f"Format unavailable, retrying with bestaudio/best for {url[:60]}")
+                ydl_opts["format"] = "bestaudio/best"
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                        info2 = ydl2.extract_info(url, download=True)
+                        if info2 is None:
+                            return {"success": False, "error": "اطلاعاتی دریافت نشد (retry)"}
+                        if "entries" in info2:
+                            info2 = info2["entries"][0]
+                        downloaded_path = self._find_mp3(ydl2, info2, safe_title)
+                        if not downloaded_path:
+                            return {"success": False, "error": "فایل MP3 ساخته نشد (retry)"}
+                        if not metadata.get("title"):
+                            t = info2.get("title", "Unknown")
+                            p = t.split(" - ", 1)
+                            metadata = {
+                                "title": p[1].strip() if len(p) == 2 else t,
+                                "artist": p[0].strip() if len(p) == 2 else info2.get("uploader", ""),
+                                "album": "", "cover_url": info2.get("thumbnail", ""), "lyrics": "",
+                            }
+                        thumb_path2 = None
+                        if metadata.get("cover_url"):
+                            thumb_path2 = self._download_cover(metadata["cover_url"], safe_title)
+                        self._embed_tags(downloaded_path, metadata, thumb_path2)
+                        return {
+                            "success": True, "path": downloaded_path, "thumb": thumb_path2,
+                            "title": metadata.get("title", ""), "artist": metadata.get("artist", ""),
+                            "album": metadata.get("album", ""), "lyrics": metadata.get("lyrics", ""),
+                        }
+                except Exception as e2:
+                    return {"success": False, "error": str(e2)[:200]}
             return {"success": False, "error": err[:200]}
         except Exception as e:
             return {"success": False, "error": str(e)[:200]}

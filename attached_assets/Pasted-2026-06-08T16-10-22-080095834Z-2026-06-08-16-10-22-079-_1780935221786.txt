@@ -1,0 +1,50 @@
+2026-06-08T16:10:22.080095834Z 2026-06-08 16:10:22,079 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:10:22.428704013Z 2026-06-08 16:10:22,428 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T16:10:25.688587583Z 2026-06-08 16:10:25,688 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:10:26.019866547Z 2026-06-08 16:10:26,019 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/answerCallbackQuery "HTTP/1.1 200 OK"
+2026-06-08T16:10:26.413914473Z 2026-06-08 16:10:26,413 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/editMessageText "HTTP/1.1 200 OK"
+2026-06-08T16:10:26.785321964Z 2026-06-08 16:10:26,784 - downloader - INFO - Searching YouTube for: abcdefu GAYLE audio
+2026-06-08T16:10:32.33695194Z 2026-06-08 16:10:32,336 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:10:32] "GET / HTTP/1.1" 200 -
+2026-06-08T16:10:35.862178999Z 2026-06-08 16:10:35,861 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:10:36.859260285Z 2026-06-08 16:10:36,858 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:10:36] "HEAD / HTTP/1.1" 200 -
+2026-06-08T16:10:36.971077928Z ERROR: [youtube] 3i_MBzr7LWs: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:37.058189027Z 2026-06-08 16:10:37,057 - downloader - WARNING - Skipping 3i_MBzr7LWs: ERROR: [youtube] 3i_MBzr7LWs: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:42.071109236Z ERROR: [youtube] JBe0yHNEURo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:42.158607283Z 2026-06-08 16:10:42,158 - downloader - WARNING - Skipping JBe0yHNEURo: ERROR: [youtube] JBe0yHNEURo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:46.360235069Z 2026-06-08 16:10:46,358 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:10:47.069288589Z ERROR: [youtube] 6XsJkEAdcaI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:47.071041459Z 2026-06-08 16:10:47,070 - downloader - WARNING - Skipping 6XsJkEAdcaI: ERROR: [youtube] 6XsJkEAdcaI: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:52.664134647Z ERROR: [youtube] NaFd8ucHLuo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:52.664686319Z 2026-06-08 16:10:52,664 - downloader - WARNING - Skipping NaFd8ucHLuo: ERROR: [youtube] NaFd8ucHLuo: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:56.863090603Z 2026-06-08 16:10:56,862 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:10:57.068525343Z ERROR: [youtube] vXFNvAfz3bY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:57.070755014Z 2026-06-08 16:10:57,070 - downloader - WARNING - Skipping vXFNvAfz3bY: ERROR: [youtube] vXFNvAfz3bY: Requested format is not available. Use --list-formats for a list of available formats
+2026-06-08T16:10:57.070785665Z 2026-06-08 16:10:57,070 - downloader - WARNING - YouTube blocked on this IP — trying SoundCloud fallback
+2026-06-08T16:10:57.070863537Z 2026-06-08 16:10:57,070 - downloader - INFO - Trying SoundCloud for: abcdefu GAYLE audio
+2026-06-08T16:11:02.345935325Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T16:11:03.366892407Z ERROR: [soundcloud] Unable to download JSON metadata: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+2026-06-08T16:11:07.160768206Z 2026-06-08 16:11:07,158 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:11:08.764741951Z 2026-06-08 16:11:08,764 - downloader - INFO - SoundCloud download succeeded
+2026-06-08T16:11:12.339362494Z 2026-06-08 16:11:12,339 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendAudio "HTTP/1.1 200 OK"
+2026-06-08T16:11:17.332906818Z 2026-06-08 16:11:17,332 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:11:19.364758224Z 2026-06-08 16:11:19,364 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:11:19] "GET / HTTP/1.1" 200 -
+2026-06-08T16:11:25.270522729Z 2026-06-08 16:11:25,270 - syncedlyrics - ERROR - An error occurred while searching for an LRC on Lrclib
+2026-06-08T16:11:25.2705526Z 2026-06-08 16:11:25,270 - syncedlyrics - ERROR - HTTPSConnectionPool(host='lrclib.net', port=443): Read timed out. (read timeout=10)
+2026-06-08T16:11:26.536347564Z 2026-06-08 16:11:26,529 - syncedlyrics - INFO - Lyrics found for "abcdefu GAYLE" on NetEase
+2026-06-08T16:11:27.213287051Z 2026-06-08 16:11:27,213 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/sendMessage "HTTP/1.1 200 OK"
+2026-06-08T16:11:27.503445947Z 2026-06-08 16:11:27,494 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:11:37.657555566Z 2026-06-08 16:11:37,657 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:11:38.007945497Z 2026-06-08 16:11:38,007 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:11:38] "GET / HTTP/1.1" 200 -
+2026-06-08T16:11:47.822700732Z 2026-06-08 16:11:47,822 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:11:57.990980903Z 2026-06-08 16:11:57,990 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:08.153879446Z 2026-06-08 16:12:08,153 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:12.201094591Z 2026-06-08 16:12:12,199 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:12:12] "GET / HTTP/1.1" 200 -
+2026-06-08T16:12:18.316588439Z 2026-06-08 16:12:18,316 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:28.47684543Z 2026-06-08 16:12:28,476 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:38.639169394Z 2026-06-08 16:12:38,638 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:48.802556575Z 2026-06-08 16:12:48,802 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:12:48.85967187Z 2026-06-08 16:12:48,857 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:12:48] "GET / HTTP/1.1" 200 -
+2026-06-08T16:12:58.965977182Z 2026-06-08 16:12:58,965 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:13:04.309190505Z 2026-06-08 16:13:04,308 - werkzeug - INFO - 127.0.0.1 - - [08/Jun/2026 16:13:04] "GET / HTTP/1.1" 200 -
+2026-06-08T16:13:09.131995173Z 2026-06-08 16:13:09,131 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
+2026-06-08T16:13:19.295337685Z 2026-06-08 16:13:19,291 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8967396510:AAHDNkd1QtiHAV31BHQlvb3um6-dU3Osjb8/getUpdates "HTTP/1.1 200 OK"
