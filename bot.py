@@ -268,14 +268,6 @@ async def send_audio(bot, chat_id, result):
 def main():
     keep_alive()
 
-    # اگه روی Replit هستیم (REPL_ID ست شده) فقط Flask اجرا می‌شه
-    # تا با نمونه Render تداخل نداشته باشه
-    if os.environ.get("REPL_ID"):
-        logger.info("Running on Replit — Flask only (bot polling disabled to avoid Conflict with Render)")
-        import time
-        while True:
-            time.sleep(60)
-
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
