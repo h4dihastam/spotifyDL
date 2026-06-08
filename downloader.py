@@ -295,7 +295,13 @@ class Downloader:
         if ps_result["success"]:
             return ps_result
 
-        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، سایت‌های موزیک ایرانی)"}
+        # ── DuckDuckGo search روی همه سایت‌های موزیک ────────────────────────
+        logger.info(f"Trying DuckDuckGo site-search for: {query}")
+        ddg_result = self._ddg_site_search_download(query, quality, metadata)
+        if ddg_result["success"]:
+            return ddg_result
+
+        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، سایت‌های موزیک ایرانی، DuckDuckGo)"}
 
     def _persian_sites_download(self, query: str, quality: str, metadata: dict) -> dict:
         """
@@ -423,6 +429,94 @@ class Downloader:
                 # (اگه نتیجه داشت ولی دانلود ناموفق بود، سراغ سایت بعدی می‌ریم)
 
         return {"success": False, "error": "سایت‌های موزیک ایرانی: نتیجه‌ای پیدا نشد"}
+
+    def _ddg_site_search_download(self, query: str, quality: str, metadata: dict) -> dict:
+        """
+        جستجوی DuckDuckGo با محدودیت به سایت‌های موزیک ایرانی و خارجی.
+        query گوگل‌مانند: (site:behmelody.in OR site:bia2music.com OR ...) "song name"
+        نتایج رو scrape می‌کنه و لینک MP3 پیدا می‌کنه.
+        """
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            logger.warning("duckduckgo-search not installed, skipping DDG fallback")
+            return {"success": False, "error": "duckduckgo-search نصب نیست"}
+
+        # سایت‌های معتبر موزیک ایرانی که لینک مستقیم MP3 دارن
+        trusted_domains = [
+            "behmelody.in", "bia2music.com", "jenabmusic.com",
+            "avalmusic.com", "avangmusic.com", "remixbaz.com",
+            "mp3aran.net", "sevilmusics.com", "musicfa.com",
+            "fa-music.ir", "musics.ir", "music-fa.com",
+        ]
+        site_filter = " OR ".join(f"site:{d}" for d in trusted_domains)
+
+        title  = metadata.get("title", "")
+        artist = metadata.get("artist", "")
+        base_q = re.sub(r'\s*(audio|official audio)\s*$', '', query, flags=re.IGNORECASE).strip()
+
+        # چند search query برای امتحان
+        search_queries = list(dict.fromkeys(filter(None, [
+            f'({site_filter}) "{title}" {artist}'.strip() if title else "",
+            f'({site_filter}) {base_q}',
+            f'({site_filter}) {title}'.strip() if title else "",
+        ])))
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "fa-IR,fa;q=0.9,en-US;q=0.8",
+            "Referer": "https://www.google.com/",
+        }
+        import requests as req_lib
+
+        for sq in search_queries:
+            try:
+                logger.info(f"DDG search: {sq[:100]}")
+                with DDGS() as ddgs:
+                    results = list(ddgs.text(sq, max_results=8))
+            except Exception as e:
+                logger.warning(f"DDG search failed: {e}")
+                continue
+
+            for r in results:
+                page_url = r.get("href", "")
+                if not page_url or not any(d in page_url for d in trusted_domains):
+                    continue
+                logger.info(f"DDG → {page_url}")
+                try:
+                    pr = req_lib.get(page_url, headers=headers, timeout=12)
+                    if pr.status_code != 200:
+                        continue
+
+                    mp3_links = re.findall(
+                        r'(?:href|src|data-src|data-url|data-link|data-file)=["\']'
+                        r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
+                        pr.text, re.IGNORECASE
+                    )
+                    if not mp3_links:
+                        mp3_links = re.findall(
+                            r'(https?://[^\s"\'<>]+\.mp3)',
+                            pr.text, re.IGNORECASE
+                        )
+
+                    if not mp3_links:
+                        logger.info(f"DDG: no MP3 on {page_url}")
+                        continue
+
+                    for mp3_url in list(dict.fromkeys(mp3_links))[:3]:
+                        logger.info(f"DDG: MP3 → {mp3_url[:80]}")
+                        result = self._download_direct_mp3(
+                            mp3_url, metadata,
+                            referer=page_url, session_headers=headers
+                        )
+                        if result["success"]:
+                            logger.info(f"DDG: ✓ download succeeded from {page_url}")
+                            return result
+                except Exception as e:
+                    logger.warning(f"DDG: error on {page_url}: {e}")
+                    continue
+
+        return {"success": False, "error": "DuckDuckGo: نتیجه‌ای پیدا نشد"}
 
     def _download_direct_mp3(self, url: str, metadata: dict,
                               referer: str = "", session_headers: dict = None) -> dict:

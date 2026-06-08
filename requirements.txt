@@ -5,3 +5,4 @@ aiohttp==3.10.5
 flask
 requests
 syncedlyrics
+duckduckgo-search>=6.0.0
