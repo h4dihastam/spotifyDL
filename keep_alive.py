@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from threading import Thread
 
@@ -7,8 +8,13 @@ app = Flask('')
 def home():
     return "ربات اسپاتیفای زنده است! 🎵"
 
+@app.route('/health')
+def health():
+    return "ok", 200
+
 def run():
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run)
