@@ -189,28 +189,32 @@ async def run_download(update, context, url, kind, quality, is_spotify):
                 return
             await context.bot.send_message(chat_id, f"📦 {total} آهنگ پیدا شد. شروع دانلود...")
 
-            ok, fail = 0, 0
-            for i, track in enumerate(tracks, 1):
-                try:
-                    await context.bot.send_message(chat_id, f"⏳ {i}/{total} — {track.get('title', '')}")
-                    prefetch = {
-                        "title": track.get("title", ""),
-                        "artist": track.get("artist", ""),
-                        "album": track.get("album", ""),
-                        "cover_url": track.get("cover_url", ""),
-                        "lyrics": "",
-                    }
-                    result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
-                    await send_audio(context.bot, chat_id, result)
-                    ok += 1
-                    await asyncio.sleep(1.5)
-                except Exception as e:
-                    logger.error(f"Track {i} failed: {e}")
-                    fail += 1
+            sem = asyncio.Semaphore(3)
+            counters = {"ok": 0, "fail": 0}
+
+            async def download_track(i, track):
+                async with sem:
+                    try:
+                        await context.bot.send_message(chat_id, f"⏳ {i}/{total} — {track.get('title', '')}")
+                        prefetch = {
+                            "title": track.get("title", ""),
+                            "artist": track.get("artist", ""),
+                            "album": track.get("album", ""),
+                            "cover_url": track.get("cover_url", ""),
+                            "lyrics": "",
+                        }
+                        result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
+                        await send_audio(context.bot, chat_id, result)
+                        counters["ok"] += 1
+                    except Exception as e:
+                        logger.error(f"Track {i} failed: {e}")
+                        counters["fail"] += 1
+
+            await asyncio.gather(*[download_track(i, t) for i, t in enumerate(tracks, 1)])
 
             await context.bot.send_message(
                 chat_id,
-                f"✅ تموم شد!\n✔️ موفق: {ok}\n❌ ناموفق: {fail}"
+                f"✅ تموم شد!\n✔️ موفق: {counters['ok']}\n❌ ناموفق: {counters['fail']}"
             )
     except Exception as e:
         logger.error(f"Download error: {e}")

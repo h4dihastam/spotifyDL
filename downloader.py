@@ -24,8 +24,14 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "tgbot_music"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# فرمت صوتی — از همه استریم‌های معتبر قبول می‌کنیم
-_SAFE_FORMAT = "bestaudio/best"
+# فرمت صوتی — استریم‌های HTTP بدون DRM اولویت دارن
+_SAFE_FORMAT = (
+    "bestaudio[protocol^=http][vcodec=none]"
+    "/bestaudio[protocol^=https][vcodec=none]"
+    "/bestaudio[ext=webm]"
+    "/bestaudio[ext=m4a]"
+    "/bestaudio/best"
+)
 
 # ── کوکی یوتیوب (برای سرورهای cloud که IP‌شون بلاکه) ─────────────────────────
 _YT_COOKIE_FILE: Optional[str] = None
@@ -54,9 +60,9 @@ def _yt_base_opts() -> dict:
     """گزینه‌های پایه یوتیوب: چند player client + کوکی اگه داریم"""
     opts: dict = {
         "extractor_args": {
-            # ios روی cloud IP استریم DRM-protected برمی‌گردونه — حذفش می‌کنیم
-            # mweb و tv_embedded استریم HTTP معمولی برمی‌گردونن
-            "youtube": {"player_client": ["mweb", "tv_embedded", "web_creator"]}
+            # android_music روی cloud IP استریم HTTP قابل دانلود برمی‌گردونه
+            # tv_embedded و mweb fallback های قابل اعتماد هستن
+            "youtube": {"player_client": ["android_music", "tv_embedded", "mweb"]}
         },
     }
     if _YT_COOKIE_FILE:
@@ -149,9 +155,31 @@ class Downloader:
             m = re.search(r"/track/([A-Za-z0-9]+)", spotify_url)
             metadata = {"title": m.group(1) if m else "track", "artist": "", "album": "", "cover_url": "", "lyrics": ""}
 
-        search_q = f"{metadata['title']} {metadata.get('artist', '')} audio".strip()
-        logger.info(f"Searching YouTube for: {search_q}")
-        return self._search_and_download(search_q, quality, metadata)
+        title = metadata['title']
+        artist = metadata.get('artist', '')
+
+        # چند حالت جستجو: با audio، بدون audio، فقط title
+        queries = []
+        if artist:
+            queries.append(f"{title} {artist} audio")
+            queries.append(f"{title} {artist}")
+            queries.append(f"{title} official audio")
+        else:
+            queries.append(f"{title} audio")
+            queries.append(title)
+
+        for q in queries:
+            logger.info(f"Searching YouTube for: {q}")
+            result = self._search_and_download(q, quality, metadata)
+            if result["success"]:
+                return result
+            # اگه فقط نتیجه‌ای پیدا نشد (نه خطای دانلود) query بعدی رو امتحان کن
+            if "نتیجه‌ای پیدا نشد" in result.get("error", "") or "یوتیوب و ساندکلاد" in result.get("error", ""):
+                logger.info(f"No results for '{q}', trying next query...")
+                continue
+            return result
+
+        return {"success": False, "error": "با همه روش‌های جستجو نتیجه‌ای پیدا نشد"}
 
     def _search_and_download(self, query: str, quality: str, metadata: dict) -> dict:
         """جستجوی ytsearch5 و تلاش روی هر نتیجه — اگه YouTube بلاک بود SoundCloud fallback"""
@@ -205,7 +233,7 @@ class Downloader:
         }
         try:
             with yt_dlp.YoutubeDL(sc_opts) as ydl:
-                sc_info = ydl.extract_info(f"scsearch3:{query}", download=False)
+                sc_info = ydl.extract_info(f"scsearch5:{query}", download=False)
                 sc_entries = sc_info.get("entries") or []
         except Exception as e:
             logger.error(f"SoundCloud search failed: {e}")
@@ -225,7 +253,7 @@ class Downloader:
                 return result
             last_err = result.get("error", last_err)
 
-        return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
+        return {"success": False, "error": "نتیجه‌ای پیدا نشد (نه YouTube، نه SoundCloud)"}
 
     def _try_download_url(self, url: str, quality: str, metadata: dict) -> dict:
         """دانلود یک URL مشخص با فرمت امن (بدون DRM)"""
