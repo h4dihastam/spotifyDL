@@ -253,7 +253,88 @@ class Downloader:
                 return result
             last_err = result.get("error", last_err)
 
-        return {"success": False, "error": "نتیجه‌ای پیدا نشد (نه YouTube، نه SoundCloud)"}
+        # ── YouTube Music fallback ────────────────────────────────────────────
+        logger.info(f"Trying YouTube Music for: {query}")
+        ytm_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+            **_yt_base_opts(),
+        }
+        try:
+            with yt_dlp.YoutubeDL(ytm_opts) as ydl:
+                ytm_info = ydl.extract_info(f"https://music.youtube.com/search?q={urllib.parse.quote(query)}", download=False)
+                ytm_entries = ytm_info.get("entries") or [] if ytm_info else []
+        except Exception as e:
+            logger.warning(f"YouTube Music search failed: {e}")
+            ytm_entries = []
+
+        if not ytm_entries:
+            try:
+                with yt_dlp.YoutubeDL(ytm_opts) as ydl:
+                    ytm_info = ydl.extract_info(f"ytmsearch5:{query}", download=False)
+                    ytm_entries = ytm_info.get("entries") or [] if ytm_info else []
+            except Exception as e:
+                logger.warning(f"YouTube Music ytmsearch failed: {e}")
+                ytm_entries = []
+
+        for entry in ytm_entries[:5]:
+            vid_id = entry.get("id") or entry.get("videoId", "")
+            if not vid_id:
+                continue
+            yt_url = f"https://www.youtube.com/watch?v={vid_id}"
+            result = self._try_download_url(yt_url, quality, metadata)
+            if result["success"]:
+                logger.info("YouTube Music download succeeded")
+                return result
+
+        # ── RadioJavan fallback (موزیک فارسی) ────────────────────────────────
+        logger.info(f"Trying RadioJavan for: {query}")
+        rj_result = self._radiojavan_download(query, quality, metadata)
+        if rj_result["success"]:
+            return rj_result
+
+        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، RadioJavan)"}
+
+    def _radiojavan_download(self, query: str, quality: str, metadata: dict) -> dict:
+        """جستجو در RadioJavan و دانلود مستقیم از لینک MP3"""
+        import requests as req_lib
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.radiojavan.com/",
+        }
+        try:
+            r = req_lib.get(
+                f"https://www.radiojavan.com/search?query={urllib.parse.quote(query)}&type=mp3",
+                headers=headers, timeout=12
+            )
+            r.raise_for_status()
+            # استخراج لینک‌های آهنگ از HTML
+            song_slugs = re.findall(r'href=["\'](?:/mp3s/mp3/|/song/)([^"\'?]+)["\']', r.text)
+            if not song_slugs:
+                logger.info("RadioJavan: no songs found in search results")
+                return {"success": False, "error": "RadioJavan: نتیجه‌ای پیدا نشد"}
+        except Exception as e:
+            logger.warning(f"RadioJavan search request failed: {e}")
+            return {"success": False, "error": f"RadioJavan: خطا در جستجو"}
+
+        seen = set()
+        for slug in song_slugs:
+            if slug in seen:
+                continue
+            seen.add(slug)
+            rj_url = f"https://www.radiojavan.com/mp3s/mp3/{slug}"
+            logger.info(f"RadioJavan: trying {rj_url}")
+            result = self._try_download_url(rj_url, quality, metadata)
+            if result["success"]:
+                logger.info(f"RadioJavan download succeeded: {slug}")
+                return result
+            if len(seen) >= 3:
+                break
+
+        return {"success": False, "error": "RadioJavan: دانلود ناموفق بود"}
 
     def _try_download_url(self, url: str, quality: str, metadata: dict) -> dict:
         """دانلود یک URL مشخص با فرمت امن (بدون DRM)"""
