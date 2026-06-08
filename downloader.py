@@ -186,12 +186,14 @@ class Downloader:
                     return result
                 last_err = result.get("error", last_err)
                 logger.warning(f"Skipping {vid_id}: {last_err}")
-                if "Sign in" not in last_err and "bot" not in last_err.lower():
+                # این خطاها نشونه‌ی بلاک شدن IP روی cloud هستن — باید به SoundCloud fallback بریم
+                _block_signs = ("sign in", "bot", "format is not available", "requested format", "not available")
+                if not any(kw in last_err.lower() for kw in _block_signs):
                     all_blocked = False
 
             if not all_blocked:
                 return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
-            logger.warning("YouTube fully blocked (bot detection) — trying SoundCloud")
+            logger.warning("YouTube blocked on this IP — trying SoundCloud fallback")
 
         # ── SoundCloud fallback ───────────────────────────────────────────────
         logger.info(f"Trying SoundCloud for: {query}")
