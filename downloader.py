@@ -300,7 +300,7 @@ class Downloader:
     def _persian_sites_download(self, query: str, quality: str, metadata: dict) -> dict:
         """
         جستجو در سایت‌های دانلود موزیک ایرانی و دانلود مستقیم MP3.
-        ترتیب: jenabmusic → avalmusic → remixbaz → sevilmusics → radiojavan
+        شامل سایت‌هایی که آهنگ‌های خارجی هم دارن (behmelody, bia2music, ...).
         """
         import requests as req_lib
 
@@ -310,89 +310,117 @@ class Downloader:
             "Referer": "https://www.google.com/",
         }
 
-        # (نام سایت، آدرس جستجو)
+        # ── لیست سایت‌ها (نام، قالب URL جستجو) ──────────────────────────────
+        # سایت‌هایی که هم فارسی هم خارجی دارن اول لیست‌ان
         sites = [
+            ("behmelody",   "https://behmelody.in/?s={q}"),
+            ("bia2music",   "https://www.bia2music.com/?s={q}"),
             ("jenabmusic",  "https://jenabmusic.com/?s={q}"),
             ("avalmusic",   "https://avalmusic.com/?s={q}"),
+            ("avangmusic",  "https://avangmusic.com/?s={q}"),
             ("remixbaz",    "https://remixbaz.com/?s={q}"),
+            ("mp3aran",     "https://mp3aran.net/?s={q}"),
             ("sevilmusics", "https://sevilmusics.com/?s={q}"),
+            ("musicfa",     "https://musicfa.com/?s={q}"),
+            ("fa-music",    "https://fa-music.ir/?s={q}"),
         ]
 
-        encoded = urllib.parse.quote(query)
+        # ── چند query برای امتحان ─────────────────────────────────────────────
+        title  = metadata.get("title", "")
+        artist = metadata.get("artist", "")
+        # query های مختلف: کامل، بدون "audio"، فقط عنوان، عنوان+هنرمند
+        base_query = re.sub(r'\s*(audio|official audio)\s*$', '', query, flags=re.IGNORECASE).strip()
+        queries_to_try: list[str] = list(dict.fromkeys(filter(None, [
+            base_query,
+            f"{title} {artist}".strip() if artist else "",
+            title,
+        ])))
+
+        skip_parts = ("?s=", "/category/", "/tag/", "/page/", "/author/",
+                      "/feed/", "/wp-", ".css", ".js", ".png", ".jpg", ".gif",
+                      "/contact", "/about", "/login", "/register")
 
         for site_name, url_tpl in sites:
-            search_url = url_tpl.format(q=encoded)
-            try:
-                sr = req_lib.get(search_url, headers=headers, timeout=12)
-                if sr.status_code != 200:
-                    logger.info(f"{site_name}: HTTP {sr.status_code}")
-                    continue
-            except Exception as e:
-                logger.warning(f"{site_name}: search request failed: {e}")
-                continue
+            domain = url_tpl.split("/")[2]
 
-            # ── استخراج لینک‌های صفحه آهنگ ──────────────────────────────────
-            domain = search_url.split("/")[2]
-            raw_links = re.findall(
-                rf'href=["\']((https?://)?{re.escape(domain)}/[^"\'#?]+)["\']',
-                sr.text
-            )
-            seen_links: set = set()
-            song_pages = []
-            skip_parts = ("?s=", "/category/", "/tag/", "/page/", "/author/",
-                          "/feed/", "/wp-", ".css", ".js", ".png", ".jpg")
-            for groups in raw_links:
-                link = groups[0]
-                if not link.startswith("http"):
-                    link = f"https://{domain}{link}"
-                if link in seen_links or link == f"https://{domain}/":
-                    continue
-                if any(p in link for p in skip_parts):
-                    continue
-                seen_links.add(link)
-                song_pages.append(link)
-                if len(song_pages) >= 6:
-                    break
-
-            logger.info(f"{site_name}: found {len(song_pages)} candidate pages")
-
-            for song_page in song_pages:
+            for q_attempt in queries_to_try:
+                encoded = urllib.parse.quote(q_attempt)
+                search_url = url_tpl.format(q=encoded)
                 try:
-                    pr = req_lib.get(song_page, headers={**headers, "Referer": search_url},
-                                     timeout=12)
-                    if pr.status_code != 200:
+                    sr = req_lib.get(search_url, headers=headers, timeout=12)
+                    if sr.status_code != 200:
+                        logger.info(f"{site_name}: HTTP {sr.status_code} for '{q_attempt}'")
                         continue
+                except Exception as e:
+                    logger.warning(f"{site_name}: search failed for '{q_attempt}': {e}")
+                    continue
 
-                    # ── پیدا کردن لینک مستقیم MP3 ────────────────────────────
-                    mp3_links = re.findall(
-                        r'(?:href|src|data-src|data-url|data-link)=["\']'
-                        r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
-                        pr.text, re.IGNORECASE
-                    )
-                    # برخی سایت‌ها لینک رو در onclick یا JS می‌ذارن
-                    if not mp3_links:
+                # ── استخراج لینک‌های صفحه آهنگ ──────────────────────────────
+                raw_links = re.findall(
+                    rf'href=["\']((https?://)?{re.escape(domain)}/[^"\'#?]+)["\']',
+                    sr.text
+                )
+                seen_links: set = set()
+                song_pages = []
+                for groups in raw_links:
+                    link = groups[0]
+                    if not link.startswith("http"):
+                        link = f"https://{domain}{link}"
+                    if link in seen_links or link == f"https://{domain}/":
+                        continue
+                    if any(p in link for p in skip_parts):
+                        continue
+                    seen_links.add(link)
+                    song_pages.append(link)
+                    if len(song_pages) >= 6:
+                        break
+
+                if not song_pages:
+                    logger.info(f"{site_name}: no song pages for '{q_attempt}'")
+                    continue
+
+                logger.info(f"{site_name}: {len(song_pages)} pages for '{q_attempt}'")
+
+                for song_page in song_pages:
+                    try:
+                        pr = req_lib.get(song_page,
+                                         headers={**headers, "Referer": search_url},
+                                         timeout=12)
+                        if pr.status_code != 200:
+                            continue
+
+                        # ── لینک MP3: در attr ها، JS، onclick ────────────────
                         mp3_links = re.findall(
-                            r'["\']?(https?://[^\s"\'<>]+\.mp3)["\']?',
+                            r'(?:href|src|data-src|data-url|data-link|data-file)=["\']'
+                            r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
                             pr.text, re.IGNORECASE
                         )
+                        if not mp3_links:
+                            mp3_links = re.findall(
+                                r'(https?://[^\s"\'<>]+\.mp3)',
+                                pr.text, re.IGNORECASE
+                            )
 
-                    if not mp3_links:
-                        logger.info(f"{site_name}: no MP3 link on {song_page}")
+                        if not mp3_links:
+                            logger.info(f"{site_name}: no MP3 on {song_page}")
+                            continue
+
+                        for mp3_url in list(dict.fromkeys(mp3_links))[:3]:
+                            logger.info(f"{site_name}: MP3 → {mp3_url[:80]}")
+                            result = self._download_direct_mp3(
+                                mp3_url, metadata,
+                                referer=song_page, session_headers=headers
+                            )
+                            if result["success"]:
+                                logger.info(f"{site_name}: ✓ download succeeded")
+                                return result
+
+                    except Exception as e:
+                        logger.warning(f"{site_name}: error on {song_page}: {e}")
                         continue
 
-                    for mp3_url in dict.fromkeys(mp3_links)[:3]:
-                        logger.info(f"{site_name}: trying MP3 {mp3_url[:80]}")
-                        result = self._download_direct_mp3(
-                            mp3_url, metadata,
-                            referer=song_page, session_headers=headers
-                        )
-                        if result["success"]:
-                            logger.info(f"{site_name}: download succeeded")
-                            return result
-
-                except Exception as e:
-                    logger.warning(f"{site_name}: error on {song_page}: {e}")
-                    continue
+                # اگه با این query یه سایت کاری نداشت، بریم سراغ query بعدی
+                # (اگه نتیجه داشت ولی دانلود ناموفق بود، سراغ سایت بعدی می‌ریم)
 
         return {"success": False, "error": "سایت‌های موزیک ایرانی: نتیجه‌ای پیدا نشد"}
 
