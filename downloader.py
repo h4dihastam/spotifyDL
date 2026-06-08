@@ -32,6 +32,40 @@ _SAFE_FORMAT = (
     "/bestaudio/best"
 )
 
+# ── کوکی یوتیوب (برای سرورهای cloud که IP‌شون بلاکه) ─────────────────────────
+_YT_COOKIE_FILE: Optional[str] = None
+
+def _init_yt_cookies() -> None:
+    """اگه YT_COOKIES_B64 ست شده، کوکی‌ها رو به فایل موقت decode می‌کنه"""
+    global _YT_COOKIE_FILE
+    import base64
+    raw = os.environ.get("YT_COOKIES_B64", "").strip()
+    if not raw:
+        return
+    try:
+        content = base64.b64decode(raw).decode("utf-8")
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        f.write(content)
+        f.close()
+        _YT_COOKIE_FILE = f.name
+        logger.info(f"YouTube cookies loaded from env → {_YT_COOKIE_FILE}")
+    except Exception as e:
+        logger.warning(f"Failed to init YT cookies: {e}")
+
+_init_yt_cookies()
+
+
+def _yt_base_opts() -> dict:
+    """گزینه‌های پایه یوتیوب: چند player client + کوکی اگه داریم"""
+    opts: dict = {
+        "extractor_args": {
+            "youtube": {"player_client": ["ios", "mweb", "tv_embedded"]}
+        },
+    }
+    if _YT_COOKIE_FILE:
+        opts["cookiefile"] = _YT_COOKIE_FILE
+    return opts
+
 
 def _embed_track_metadata(spotify_url: str) -> dict:
     """
@@ -123,38 +157,74 @@ class Downloader:
         return self._search_and_download(search_q, quality, metadata)
 
     def _search_and_download(self, query: str, quality: str, metadata: dict) -> dict:
-        """جستجوی ytsearch5 و تلاش روی هر نتیجه تا یکی کار کنه"""
-        # اول لیست نتایج را بدون دانلود بگیر
+        """جستجوی ytsearch5 و تلاش روی هر نتیجه — اگه YouTube بلاک بود SoundCloud fallback"""
+        # ── جستجوی YouTube ────────────────────────────────────────────────────
         flat_opts = {
             "quiet": True,
             "no_warnings": True,
             "extract_flat": True,
             "skip_download": True,
-            "extractor_args": {"youtube": {"player_client": ["ios"]}},
+            **_yt_base_opts(),
         }
         entries = []
+        yt_blocked = False
         try:
             with yt_dlp.YoutubeDL(flat_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch5:{query}", download=False)
                 entries = info.get("entries") or []
         except Exception as e:
-            logger.error(f"Search failed: {e}")
-            return {"success": False, "error": "جستجو در یوتیوب ناموفق بود"}
+            logger.warning(f"YouTube search failed: {e}")
+            yt_blocked = True
 
-        if not entries:
-            return {"success": False, "error": "نتیجه‌ای در یوتیوب پیدا نشد"}
+        if not yt_blocked and entries:
+            last_err = "خطای ناشناخته"
+            all_blocked = True
+            for entry in entries:
+                vid_id = entry.get("id", "")
+                if not vid_id:
+                    continue
+                yt_url = f"https://www.youtube.com/watch?v={vid_id}"
+                result = self._try_download_url(yt_url, quality, metadata)
+                if result["success"]:
+                    return result
+                last_err = result.get("error", last_err)
+                logger.warning(f"Skipping {vid_id}: {last_err}")
+                if "Sign in" not in last_err and "bot" not in last_err.lower():
+                    all_blocked = False
+
+            if not all_blocked:
+                return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
+            logger.warning("YouTube fully blocked (bot detection) — trying SoundCloud")
+
+        # ── SoundCloud fallback ───────────────────────────────────────────────
+        logger.info(f"Trying SoundCloud for: {query}")
+        sc_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+        }
+        try:
+            with yt_dlp.YoutubeDL(sc_opts) as ydl:
+                sc_info = ydl.extract_info(f"scsearch3:{query}", download=False)
+                sc_entries = sc_info.get("entries") or []
+        except Exception as e:
+            logger.error(f"SoundCloud search failed: {e}")
+            return {"success": False, "error": "یوتیوب و ساندکلاد هر دو در دسترس نیستن"}
+
+        if not sc_entries:
+            return {"success": False, "error": "نتیجه‌ای پیدا نشد (نه YouTube، نه SoundCloud)"}
 
         last_err = "خطای ناشناخته"
-        for entry in entries:
-            vid_id = entry.get("id", "")
-            if not vid_id:
+        for entry in sc_entries:
+            sc_url = entry.get("url") or entry.get("webpage_url", "")
+            if not sc_url:
                 continue
-            yt_url = f"https://www.youtube.com/watch?v={vid_id}"
-            result = self._try_download_url(yt_url, quality, metadata)
+            result = self._try_download_url(sc_url, quality, metadata)
             if result["success"]:
+                logger.info("SoundCloud download succeeded")
                 return result
             last_err = result.get("error", last_err)
-            logger.warning(f"Skipping {vid_id}: {last_err}")
 
         return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
 
@@ -171,7 +241,7 @@ class Downloader:
             "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": False,
-            "extractor_args": {"youtube": {"player_client": ["ios"]}},
+            **_yt_base_opts(),
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
