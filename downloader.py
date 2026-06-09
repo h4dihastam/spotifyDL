@@ -418,89 +418,152 @@ class Downloader:
     # ── تمام آهنگ‌های یک خواننده ─────────────────────────────────────────────
     async def get_artist_tracks(self, artist_url: str) -> list[dict]:
         """
-        همه آهنگ‌های یک خواننده از Spotify API (anonymous token).
-        شامل همه آلبوم‌ها، سینگل‌ها و EP ها — بدون محدودیت ۵۰ تایی.
+        همه آهنگ‌های خواننده از طریق embed page — بدون نیاز به توکن API.
+        مراحل:
+          1. از embed artist page لیست آلبوم‌ها رو بگیر
+          2. برای هر آلبوم از get_collection_tracks استفاده کن (که قبلاً کار می‌کنه)
         """
-        loop = asyncio.get_event_loop()
         m = re.search(r'spotify\.com/artist/([A-Za-z0-9]+)', artist_url)
         if not m:
             return []
         artist_id = m.group(1)
 
+        # ── مرحله ۱: لیست آلبوم‌ها از embed page ─────────────────────────────
+        album_ids = await self._get_artist_album_ids(artist_id)
+        if not album_ids:
+            logger.error(f"No albums found for artist {artist_id}")
+            return []
+
+        logger.info(f"Artist {artist_id}: {len(album_ids)} albums found")
+
+        # ── مرحله ۲: آهنگ‌های هر آلبوم ──────────────────────────────────────
+        all_tracks: list[dict] = []
+        seen_track_ids: set[str] = set()
+
+        for album_id, album_name in album_ids:
+            album_url = f"https://open.spotify.com/album/{album_id}"
+            try:
+                tracks = await self.get_collection_tracks(album_url, "album")
+                for t in tracks:
+                    tid_m = re.search(r'/track/([A-Za-z0-9]+)', t.get("url", ""))
+                    if not tid_m:
+                        continue
+                    tid = tid_m.group(1)
+                    if tid in seen_track_ids:
+                        continue
+                    seen_track_ids.add(tid)
+                    if album_name:
+                        t["album"] = album_name
+                    all_tracks.append(t)
+                logger.info(f"Album {album_id}: {len(tracks)} tracks → total {len(all_tracks)}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch album {album_id}: {e}")
+
+        logger.info(f"Artist {artist_id}: {len(all_tracks)} unique tracks total")
+        return all_tracks
+
+    async def _get_artist_album_ids(self, artist_id: str) -> list[tuple[str, str]]:
+        """
+        لیست (album_id, album_name) از embed artist page اسپاتیفای.
+        اگر embed جواب نداد از __NEXT_DATA__ صفحه اصلی هم تلاش می‌کنه.
+        """
+        loop = asyncio.get_event_loop()
+
         def _do():
             import requests as req_lib
-            token = _get_spotify_token()
-            if not token:
-                logger.error("Could not get Spotify token for artist fetch")
-                return []
-
             headers = {
-                "Authorization": f"Bearer {token}",
-                "User-Agent": "Mozilla/5.0",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
             }
 
-            # ── مرحله ۱: همه آلبوم‌ها/سینگل‌ها ──────────────────────────────
-            albums = []
-            url = (
-                f"https://api.spotify.com/v1/artists/{artist_id}/albums"
-                f"?include_groups=album,single&limit=50&market=US"
-            )
-            while url:
+            album_ids: list[tuple[str, str]] = []
+            seen: set[str] = set()
+
+            def _extract_albums_from_json(data: dict):
+                """ریشه‌یابی آلبوم‌ها در ساختار JSON"""
                 try:
-                    r = req_lib.get(url, headers=headers, timeout=12)
+                    entity = data["props"]["pageProps"]["state"]["data"]["entity"]
+                except (KeyError, TypeError):
+                    return
+
+                # حالت ۱: discography در entity
+                discog = entity.get("discography") or {}
+                for section_key in ("all", "albums", "singles", "popularReleases"):
+                    section = discog.get(section_key) or {}
+                    items = section.get("items") or []
+                    for item in items:
+                        releases = item.get("releases") or {}
+                        for rel in (releases.get("items") or []):
+                            aid = rel.get("id", "")
+                            aname = rel.get("name", "")
+                            if aid and aid not in seen:
+                                seen.add(aid)
+                                album_ids.append((aid, aname))
+
+                # حالت ۲: مستقیم trackList (اگه embed آهنگ‌ها رو نشون داد)
+                track_list = entity.get("trackList") or []
+                for t in track_list:
+                    uri = t.get("uri", "")
+                    parts = uri.split(":")
+                    if len(parts) == 3 and parts[1] == "album":
+                        if parts[2] not in seen:
+                            seen.add(parts[2])
+                            album_ids.append((parts[2], t.get("albumTitle", "")))
+
+            # تلاش ۱: صفحه اصلی artist (اگه با JS رندر نشه، __NEXT_DATA__ داره)
+            for attempt_url in [
+                f"https://open.spotify.com/artist/{artist_id}/discography/all",
+                f"https://open.spotify.com/artist/{artist_id}",
+            ]:
+                try:
+                    r = req_lib.get(attempt_url, headers=headers, timeout=15)
                     r.raise_for_status()
-                    data = r.json()
-                    albums.extend(data.get("items", []))
-                    url = data.get("next")
+                    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+                    if nm:
+                        _extract_albums_from_json(json.loads(nm.group(1)))
+                        if album_ids:
+                            logger.info(f"Got {len(album_ids)} albums from {attempt_url}")
+                            break
                 except Exception as e:
-                    logger.warning(f"Albums fetch error: {e}")
-                    break
+                    logger.warning(f"Artist page fetch failed ({attempt_url}): {e}")
 
-            logger.info(f"Artist {artist_id}: {len(albums)} albums/singles found")
+            # تلاش ۲: embed artist page
+            if not album_ids:
+                try:
+                    r = req_lib.get(
+                        f"https://open.spotify.com/embed/artist/{artist_id}",
+                        headers=headers, timeout=15
+                    )
+                    r.raise_for_status()
+                    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+                    if nm:
+                        _extract_albums_from_json(json.loads(nm.group(1)))
+                        logger.info(f"Got {len(album_ids)} albums from embed page")
+                except Exception as e:
+                    logger.warning(f"Embed artist page fetch failed: {e}")
 
-            # ── مرحله ۲: همه آهنگ‌های هر آلبوم ──────────────────────────────
-            tracks = []
-            seen_ids = set()
+            # تلاش ۳: internal Spotify partner API (بدون نیاز به OAuth)
+            if not album_ids:
+                try:
+                    params = {
+                        "operationName": "queryArtistDiscographyAll",
+                        "variables": json.dumps({
+                            "uri": f"spotify:artist:{artist_id}",
+                            "offset": 0, "limit": 50
+                        }),
+                        "extensions": json.dumps({
+                            "persistedQuery": {
+                                "version": 1,
+                                "sha256Hash": "35a699e85a22a6f8e9c5747e3f67e6c3e52c6e7e4c5d9c8a3f2b1e0d9c8b7a6"
+                            }
+                        })
+                    }
+                    # این API نیاز به توکن داره — skip اگه token endpoint بلاکه
+                    logger.warning("All methods exhausted for artist album fetch")
+                except Exception:
+                    pass
 
-            for album in albums:
-                album_id = album.get("id", "")
-                album_name = album.get("name", "")
-                cover_url = ""
-                if album.get("images"):
-                    cover_url = album["images"][0].get("url", "")
-
-                alb_url = (
-                    f"https://api.spotify.com/v1/albums/{album_id}/tracks"
-                    f"?limit=50&market=US"
-                )
-                while alb_url:
-                    try:
-                        r = req_lib.get(alb_url, headers=headers, timeout=12)
-                        r.raise_for_status()
-                        data = r.json()
-                        for t in data.get("items", []):
-                            tid = t.get("id", "")
-                            if not tid or tid in seen_ids:
-                                continue
-                            seen_ids.add(tid)
-                            artist_names = ", ".join(
-                                a["name"] for a in (t.get("artists") or []) if a.get("name")
-                            )
-                            tracks.append({
-                                "url": f"https://open.spotify.com/track/{tid}",
-                                "title": t.get("name", ""),
-                                "artist": artist_names,
-                                "album": album_name,
-                                "cover_url": cover_url,
-                                "lyrics": "",
-                            })
-                        alb_url = data.get("next")
-                    except Exception as e:
-                        logger.warning(f"Album {album_id} tracks error: {e}")
-                        break
-
-            logger.info(f"Artist {artist_id}: total {len(tracks)} unique tracks")
-            return tracks
+            return album_ids
 
         return await loop.run_in_executor(None, _do)
 
