@@ -1,9 +1,9 @@
 """
 downloader.py
 ─────────────
-بدون نیاز به Spotify API.
-- لینک اسپاتیفای  →  oEmbed (عنوان) + ytsearch5 در یوتیوب
-- جستجو با اسم    →  yt-dlp ytsearch مستقیم
+استراتژی دانلود (سریع‌ترین اول):
+  1. SoundCloud  — بدون fragmentation، single HTTP stream، سریع
+  2. YouTube     — fallback اگه SoundCloud نداد (فقط tv_embedded)
 """
 
 import os
@@ -11,8 +11,6 @@ import re
 import asyncio
 import tempfile
 import logging
-import threading
-import concurrent.futures
 import urllib.request
 import urllib.parse
 import json
@@ -26,14 +24,12 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "tgbot_music"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# فرمت صوتی — از ساده به پیچیده، بدون محدودیت protocol که باعث fail می‌شه
-_SAFE_FORMAT = "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
+_SAFE_FORMAT = "bestaudio/best"
 
-# ── کوکی یوتیوب (برای سرورهای cloud که IP‌شون بلاکه) ─────────────────────────
+# ── کوکی یوتیوب ───────────────────────────────────────────────────────────────
 _YT_COOKIE_FILE: Optional[str] = None
 
 def _init_yt_cookies() -> None:
-    """اگه YT_COOKIES_B64 ست شده، کوکی‌ها رو به فایل موقت decode می‌کنه"""
     global _YT_COOKIE_FILE
     import base64
     raw = os.environ.get("YT_COOKIES_B64", "").strip()
@@ -45,69 +41,100 @@ def _init_yt_cookies() -> None:
         f.write(content)
         f.close()
         _YT_COOKIE_FILE = f.name
-        logger.info(f"YouTube cookies loaded from env → {_YT_COOKIE_FILE}")
+        logger.info(f"YouTube cookies loaded → {_YT_COOKIE_FILE}")
     except Exception as e:
         logger.warning(f"Failed to init YT cookies: {e}")
 
 _init_yt_cookies()
 
 
-def _yt_base_opts() -> dict:
-    """گزینه‌های پایه یوتیوب: چند player client + کوکی اگه داریم"""
-    opts: dict = {
-        "extractor_args": {
-            # tv_embedded: روی cloud IP ها کار می‌کنه و فرمت‌های صوتی کامل می‌ده
-            # android_music: در بعضی موارد مفیده ولی روی بعضی cloud IP ها "format not available" می‌ده
-            # web: fallback عمومی
-            "youtube": {"player_client": ["tv_embedded", "android_music", "web"]}
-        },
+def _yt_opts_base() -> dict:
+    """گزینه‌های پایه yt-dlp برای همه دانلودها"""
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
     }
     if _YT_COOKIE_FILE:
         opts["cookiefile"] = _YT_COOKIE_FILE
     return opts
 
 
+def _yt_opts_youtube() -> dict:
+    """گزینه‌های اضافه برای YouTube — فقط tv_embedded (کمترین fragmentation)"""
+    return {
+        **_yt_opts_base(),
+        "extractor_args": {
+            "youtube": {"player_client": ["tv_embedded"]}
+        },
+        "concurrent_fragment_downloads": 5,
+    }
+
+
+# ── اسپاتیفای anonymous token ─────────────────────────────────────────────────
+_sp_token: Optional[str] = None
+_sp_token_expiry: float = 0.0
+
+def _get_spotify_token() -> Optional[str]:
+    """
+    توکن anonymous اسپاتیفای (بدون نیاز به API Key).
+    کش می‌شه تا expire بشه.
+    """
+    import time
+    import requests as req_lib
+    global _sp_token, _sp_token_expiry
+
+    if _sp_token and time.time() < _sp_token_expiry - 30:
+        return _sp_token
+
+    try:
+        r = req_lib.get(
+            "https://open.spotify.com/get_access_token?reason=transport&productType=web_player",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            timeout=10
+        )
+        r.raise_for_status()
+        data = r.json()
+        _sp_token = data.get("accessToken")
+        expiry_ms = data.get("accessTokenExpirationTimestampMs", 0)
+        _sp_token_expiry = expiry_ms / 1000 if expiry_ms else time.time() + 3600
+        return _sp_token
+    except Exception as e:
+        logger.warning(f"Spotify token fetch failed: {e}")
+        return None
+
+
 def _embed_track_metadata(spotify_url: str) -> dict:
-    """
-    گرفتن متادیتای دقیق آهنگ از صفحه embed اسپاتیفای.
-    عنوان، اسم واقعی خواننده، و تصویر کاور.
-    """
+    """متادیتای آهنگ از embed page اسپاتیفای — بدون API key"""
     try:
         import requests as req_lib
         m = re.search(r'spotify\.com/track/([A-Za-z0-9]+)', spotify_url)
         if not m:
             return {}
         track_id = m.group(1)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         r = req_lib.get(f"https://open.spotify.com/embed/track/{track_id}", headers=headers, timeout=10)
         r.raise_for_status()
-        next_m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
-        if not next_m:
+        nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+        if not nm:
             return {}
-        entity = json.loads(next_m.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+        entity = json.loads(nm.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
 
         title = entity.get("title", "")
         artists = entity.get("artists") or []
         artist = ", ".join(a["name"] for a in artists if a.get("name"))
+
         cover_url = ""
         vi = entity.get("visualIdentity") or {}
-        images = vi.get("image") or []
-        if images:
-            # بزرگترین تصویر
-            best = max(images, key=lambda x: x.get("maxWidth") or 0)
+        imgs = vi.get("image") or []
+        if imgs:
+            best = max(imgs, key=lambda x: x.get("maxWidth") or 0)
             cover_url = best.get("url", "")
 
-        # مدت زمان آهنگ (ثانیه) — برای تشخیص preview های کوتاه
-        duration_ms = entity.get("duration") or entity.get("duration_ms") or 0
+        duration_ms = entity.get("duration", 0) or 0
         duration_sec = int(duration_ms / 1000) if duration_ms else 0
 
-        return {
-            "title": title, "artist": artist, "album": "",
-            "cover_url": cover_url, "lyrics": "",
-            "duration": duration_sec,
-        }
+        return {"title": title, "artist": artist, "album": "", "cover_url": cover_url, "lyrics": "", "duration_sec": duration_sec}
     except Exception as e:
         logger.warning(f"embed track metadata failed: {e}")
         return {}
@@ -120,12 +147,7 @@ class Downloader:
         loop = asyncio.get_event_loop()
 
         def _do():
-            opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": True,
-                "skip_download": True,
-            }
+            opts = {**_yt_opts_base(), "extract_flat": True, "skip_download": True}
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
                 results = []
@@ -152,498 +174,103 @@ class Downloader:
             return await loop.run_in_executor(None, self._try_download_url, url, quality, prefetch or {})
 
     def _spotify_download(self, spotify_url: str, quality: str, prefetch: dict = None) -> dict:
-        """متادیتا از embed page اسپاتیفای، دانلود از یوتیوب"""
         metadata = prefetch if prefetch else _embed_track_metadata(spotify_url)
-
         if not metadata.get("title"):
-            # fallback: فقط ID
             m = re.search(r"/track/([A-Za-z0-9]+)", spotify_url)
             metadata = {"title": m.group(1) if m else "track", "artist": "", "album": "", "cover_url": "", "lyrics": ""}
 
-        title = metadata['title']
-        artist = metadata.get('artist', '')
-
-        # چند حالت جستجو: با audio، بدون audio، فقط title
-        queries = []
-        if artist:
-            queries.append(f"{title} {artist} audio")
-            queries.append(f"{title} {artist}")
-            queries.append(f"{title} official audio")
-        else:
-            queries.append(f"{title} audio")
-            queries.append(title)
-
-        for q in queries:
-            logger.info(f"Searching YouTube for: {q}")
-            result = self._search_and_download(q, quality, metadata)
-            if result["success"]:
-                return result
-            # اگه فقط نتیجه‌ای پیدا نشد (نه خطای دانلود) query بعدی رو امتحان کن
-            if "نتیجه‌ای پیدا نشد" in result.get("error", "") or "یوتیوب و ساندکلاد" in result.get("error", ""):
-                logger.info(f"No results for '{q}', trying next query...")
-                continue
-            return result
-
-        return {"success": False, "error": "با همه روش‌های جستجو نتیجه‌ای پیدا نشد"}
+        search_q = f"{metadata['title']} {metadata.get('artist', '')}".strip()
+        logger.info(f"Downloading: {search_q}")
+        return self._search_and_download(search_q, quality, metadata)
 
     def _search_and_download(self, query: str, quality: str, metadata: dict) -> dict:
-        """جستجوی ytsearch5 و تلاش روی هر نتیجه — اگه YouTube بلاک بود SoundCloud fallback"""
-        # ── جستجوی YouTube ────────────────────────────────────────────────────
-        flat_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": True,
-            "skip_download": True,
-            **_yt_base_opts(),
-        }
-        entries = []
-        yt_blocked = False
-        try:
-            with yt_dlp.YoutubeDL(flat_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch5:{query}", download=False)
-                entries = info.get("entries") or []
-        except Exception as e:
-            logger.warning(f"YouTube search failed: {e}")
-            yt_blocked = True
-
-        if not yt_blocked and entries:
-            last_err = "خطای ناشناخته"
-            all_blocked = True
-            for entry in entries:
-                vid_id = entry.get("id", "")
-                if not vid_id:
-                    continue
-                yt_url = f"https://www.youtube.com/watch?v={vid_id}"
-                result = self._try_download_url(yt_url, quality, metadata)
-                if result["success"]:
-                    return result
-                last_err = result.get("error", last_err)
-                logger.warning(f"Skipping {vid_id}: {last_err}")
-                # این خطاها نشونه‌ی بلاک شدن IP روی cloud هستن — باید به SoundCloud fallback بریم
-                _block_signs = ("sign in", "bot", "format is not available", "requested format", "not available")
-                if not any(kw in last_err.lower() for kw in _block_signs):
-                    all_blocked = False
-
-            if not all_blocked:
-                return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
-            logger.warning("YouTube blocked on this IP — trying SoundCloud fallback")
-
-        # ── SoundCloud fallback (فیلتر preview) ──────────────────────────────
-        sc_result = self._soundcloud_full_download(query, quality, metadata)
-        if sc_result["success"]:
-            return sc_result
-
-        # ── YouTube Music fallback ────────────────────────────────────────────
-        logger.info(f"Trying YouTube Music for: {query}")
-        ytm_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": True,
-            "skip_download": True,
-            **_yt_base_opts(),
-        }
-        try:
-            with yt_dlp.YoutubeDL(ytm_opts) as ydl:
-                ytm_info = ydl.extract_info(f"https://music.youtube.com/search?q={urllib.parse.quote(query)}", download=False)
-                ytm_entries = ytm_info.get("entries") or [] if ytm_info else []
-        except Exception as e:
-            logger.warning(f"YouTube Music search failed: {e}")
-            ytm_entries = []
-
-        if not ytm_entries:
-            try:
-                with yt_dlp.YoutubeDL(ytm_opts) as ydl:
-                    ytm_info = ydl.extract_info(f"ytmsearch5:{query}", download=False)
-                    ytm_entries = ytm_info.get("entries") or [] if ytm_info else []
-            except Exception as e:
-                logger.warning(f"YouTube Music ytmsearch failed: {e}")
-                ytm_entries = []
-
-        for entry in ytm_entries[:5]:
-            vid_id = entry.get("id") or entry.get("videoId", "")
-            if not vid_id:
-                continue
-            yt_url = f"https://www.youtube.com/watch?v={vid_id}"
-            result = self._try_download_url(yt_url, quality, metadata)
-            if result["success"]:
-                logger.info("YouTube Music download succeeded")
-                return result
-
-        # ── سایت‌های موزیک ایرانی (jenabmusic, avalmusic, remixbaz, ...) ────────
-        logger.info(f"Trying Persian music sites for: {query}")
-        ps_result = self._persian_sites_download(query, quality, metadata)
-        if ps_result["success"]:
-            return ps_result
-
-        # ── DuckDuckGo search روی همه سایت‌های موزیک ────────────────────────
-        logger.info(f"Trying DuckDuckGo site-search for: {query}")
-        ddg_result = self._ddg_site_search_download(query, quality, metadata)
-        if ddg_result["success"]:
-            return ddg_result
-
-        return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، سایت‌های موزیک ایرانی، DuckDuckGo)"}
-
-    def _soundcloud_full_download(self, query: str, quality: str, metadata: dict) -> dict:
         """
-        جستجو در SoundCloud و دانلود فقط آهنگ‌های کامل (نه preview).
-        ابتدا از soundcloud-v2 استفاده می‌کنه که خودش preview ها رو فیلتر می‌کنه.
-        اگه اون fail شد به scsearch یوتیوب-دی‌ال‌پی fallback می‌کنه.
+        استراتژی دانلود:
+          1. SoundCloud  — سریع، single stream، بدون fragmentation
+          2. YouTube     — fallback با tv_embedded
         """
-        logger.info(f"Trying SoundCloud (full tracks only) for: {query}")
+        expected_duration = metadata.get("duration_sec", 0) or 0
 
-        # ── روش اول: soundcloud-v2 که preview ها رو فیلتر می‌کنه ─────────────
+        def _is_preview(dur: float) -> bool:
+            if dur <= 0:
+                return False
+            if dur < 60:
+                return True
+            if expected_duration > 0 and dur < expected_duration * 0.7:
+                return True
+            return False
+
+        # ── مرحله ۱: SoundCloud ──────────────────────────────────────────────
+        logger.info(f"SoundCloud search: {query}")
+        sc_flat_opts = {**_yt_opts_base(), "extract_flat": True, "skip_download": True}
+        sc_entries = []
         try:
-            from soundcloud import SoundCloud as SC2
-            client = SC2()
-            sc_results = list(client.search_tracks(query))
-
-            for track in sc_results[:8]:
-                # فیلتر preview — مثل spotdl که از این تکنیک استفاده می‌کنه
-                try:
-                    transcoding_url = track.media.transcodings[0].url if track.media.transcodings else ""
-                    if "/preview/" in transcoding_url:
-                        logger.info(f"SC2: skipping preview track: {track.title}")
-                        continue
-                except Exception:
-                    pass
-
-                # بررسی مدت زمان قبل از دانلود
-                expected_dur = metadata.get("duration", 0)
-                if expected_dur and track.full_duration:
-                    track_sec = track.full_duration / 1000
-                    if track_sec < expected_dur * 0.70:
-                        logger.info(f"SC2: skipping short track {track_sec:.0f}s vs {expected_dur}s")
-                        continue
-
-                sc_url = track.permalink_url
-                if not sc_url:
-                    continue
-
-                logger.info(f"SC2: trying {sc_url[:70]}")
-                result = self._try_download_url(sc_url, quality, metadata)
-                if result["success"]:
-                    logger.info("SoundCloud (soundcloud-v2) download succeeded")
-                    return result
-
-        except ImportError:
-            logger.warning("soundcloud-v2 not installed, falling back to scsearch")
+            with yt_dlp.YoutubeDL(sc_flat_opts) as ydl:
+                info = ydl.extract_info(f"scsearch5:{query}", download=False)
+                sc_entries = info.get("entries") or []
         except Exception as e:
-            logger.warning(f"soundcloud-v2 search failed: {e}")
-
-        # ── روش دوم: scsearch از yt-dlp ──────────────────────────────────────
-        sc_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": True,
-            "skip_download": True,
-        }
-        try:
-            with yt_dlp.YoutubeDL(sc_opts) as ydl:
-                sc_info = ydl.extract_info(f"scsearch8:{query}", download=False)
-                sc_entries = sc_info.get("entries") or []
-        except Exception as e:
-            logger.error(f"SoundCloud scsearch failed: {e}")
-            return {"success": False, "error": "SoundCloud در دسترس نیست"}
+            logger.warning(f"SoundCloud search failed: {e}")
 
         for entry in sc_entries:
             sc_url = entry.get("url") or entry.get("webpage_url", "")
             if not sc_url:
                 continue
+            dur = entry.get("duration") or 0
+            if _is_preview(dur):
+                logger.warning(f"SC preview skipped ({dur}s)")
+                continue
             result = self._try_download_url(sc_url, quality, metadata)
             if result["success"]:
-                logger.info("SoundCloud (scsearch) download succeeded")
+                file_size = Path(result["path"]).stat().st_size if result.get("path") else 0
+                if expected_duration > 60 and file_size < 500_000:
+                    logger.warning(f"SC file too small ({file_size}B) — preview?")
+                    try: Path(result["path"]).unlink(missing_ok=True)
+                    except: pass
+                    continue
+                logger.info("SoundCloud download OK")
                 return result
 
-        return {"success": False, "error": "SoundCloud: نتیجه کامل پیدا نشد"}
-
-    def _persian_sites_download(self, query: str, quality: str, metadata: dict) -> dict:
-        """
-        جستجو در سایت‌های دانلود موزیک ایرانی و دانلود مستقیم MP3.
-        شامل سایت‌هایی که آهنگ‌های خارجی هم دارن (behmelody, bia2music, ...).
-        """
-        import requests as req_lib
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": "https://www.google.com/",
-        }
-
-        # ── لیست سایت‌ها (نام، قالب URL جستجو) ──────────────────────────────
-        # سایت‌هایی که هم فارسی هم خارجی دارن اول لیست‌ان
-        sites = [
-            ("behmelody",   "https://behmelody.in/?s={q}"),
-            ("bia2music",   "https://www.bia2music.com/?s={q}"),
-            ("jenabmusic",  "https://jenabmusic.com/?s={q}"),
-            ("avalmusic",   "https://avalmusic.com/?s={q}"),
-            ("avangmusic",  "https://avangmusic.com/?s={q}"),
-            ("remixbaz",    "https://remixbaz.com/?s={q}"),
-            ("mp3aran",     "https://mp3aran.net/?s={q}"),
-            ("sevilmusics", "https://sevilmusics.com/?s={q}"),
-            ("musicfa",     "https://musicfa.com/?s={q}"),
-            ("fa-music",    "https://fa-music.ir/?s={q}"),
-        ]
-
-        # ── چند query برای امتحان ─────────────────────────────────────────────
-        title  = metadata.get("title", "")
-        artist = metadata.get("artist", "")
-        # query های مختلف: کامل، بدون "audio"، فقط عنوان، عنوان+هنرمند
-        base_query = re.sub(r'\s*(audio|official audio)\s*$', '', query, flags=re.IGNORECASE).strip()
-        queries_to_try: list[str] = list(dict.fromkeys(filter(None, [
-            base_query,
-            f"{title} {artist}".strip() if artist else "",
-            title,
-        ])))
-
-        skip_parts = ("?s=", "/category/", "/tag/", "/page/", "/author/",
-                      "/feed/", "/wp-", ".css", ".js", ".png", ".jpg", ".gif",
-                      "/contact", "/about", "/login", "/register")
-
-        stop_event = threading.Event()
-
-        def _search_one_site(site_name: str, url_tpl: str):
-            """
-            یک سایت رو با همه query ها جستجو می‌کنه.
-            اگه MP3 پیدا کرد (mp3_url, page_url, site_name) برمی‌گردونه وگرنه None.
-            """
-            domain = url_tpl.split("/")[2]
-            for q_attempt in queries_to_try:
-                if stop_event.is_set():
-                    return None
-                encoded = urllib.parse.quote(q_attempt)
-                search_url = url_tpl.format(q=encoded)
-                try:
-                    sr = req_lib.get(search_url, headers=headers, timeout=10)
-                    if sr.status_code != 200:
-                        continue
-                except Exception:
-                    continue
-
-                raw_links = re.findall(
-                    rf'href=["\']((https?://)?{re.escape(domain)}/[^"\'#?]+)["\']',
-                    sr.text
-                )
-                seen_links: set = set()
-                song_pages = []
-                for groups in raw_links:
-                    link = groups[0]
-                    if not link.startswith("http"):
-                        link = f"https://{domain}{link}"
-                    if link in seen_links or link == f"https://{domain}/":
-                        continue
-                    if any(p in link for p in skip_parts):
-                        continue
-                    seen_links.add(link)
-                    song_pages.append(link)
-                    if len(song_pages) >= 5:
-                        break
-
-                if not song_pages:
-                    continue
-
-                logger.info(f"{site_name}: {len(song_pages)} pages for '{q_attempt}'")
-
-                for song_page in song_pages:
-                    if stop_event.is_set():
-                        return None
-                    try:
-                        pr = req_lib.get(song_page,
-                                         headers={**headers, "Referer": search_url},
-                                         timeout=10)
-                        if pr.status_code != 200:
-                            continue
-
-                        mp3_links = re.findall(
-                            r'(?:href|src|data-src|data-url|data-link|data-file)=["\']'
-                            r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
-                            pr.text, re.IGNORECASE
-                        )
-                        if not mp3_links:
-                            mp3_links = re.findall(
-                                r'(https?://[^\s"\'<>]+\.mp3)',
-                                pr.text, re.IGNORECASE
-                            )
-                        if mp3_links:
-                            return (list(dict.fromkeys(mp3_links))[:3], song_page, site_name)
-                    except Exception:
-                        continue
-            return None
-
-        # ── همه سایت‌ها رو به صورت موازی جستجو کن ───────────────────────────
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(sites)) as executor:
-            future_map = {
-                executor.submit(_search_one_site, name, tpl): name
-                for name, tpl in sites
-            }
-            for future in concurrent.futures.as_completed(future_map):
-                found = future.result()
-                if not found:
-                    continue
-                mp3_urls, page_url, site_name = found
-                stop_event.set()  # بقیه thread ها رو متوقف کن
-                for mp3_url in mp3_urls:
-                    logger.info(f"{site_name}: MP3 → {mp3_url[:80]}")
-                    result = self._download_direct_mp3(
-                        mp3_url, metadata,
-                        referer=page_url, session_headers=headers
-                    )
-                    if result["success"]:
-                        logger.info(f"{site_name}: ✓ parallel download succeeded")
-                        return result
-
-        return {"success": False, "error": "سایت‌های موزیک ایرانی: نتیجه‌ای پیدا نشد"}
-
-    def _ddg_site_search_download(self, query: str, quality: str, metadata: dict) -> dict:
-        """
-        جستجوی DuckDuckGo با محدودیت به سایت‌های موزیک ایرانی و خارجی.
-        query گوگل‌مانند: (site:behmelody.in OR site:bia2music.com OR ...) "song name"
-        نتایج رو scrape می‌کنه و لینک MP3 پیدا می‌کنه.
-        """
+        # ── مرحله ۲: YouTube fallback ────────────────────────────────────────
+        logger.info(f"YouTube fallback: {query}")
+        yt_flat_opts = {**_yt_opts_youtube(), "extract_flat": True, "skip_download": True}
+        yt_entries = []
         try:
-            from duckduckgo_search import DDGS
-        except ImportError:
-            logger.warning("duckduckgo-search not installed, skipping DDG fallback")
-            return {"success": False, "error": "duckduckgo-search نصب نیست"}
-
-        # سایت‌های معتبر موزیک ایرانی که لینک مستقیم MP3 دارن
-        trusted_domains = [
-            "behmelody.in", "bia2music.com", "jenabmusic.com",
-            "avalmusic.com", "avangmusic.com", "remixbaz.com",
-            "mp3aran.net", "sevilmusics.com", "musicfa.com",
-            "fa-music.ir", "musics.ir", "music-fa.com",
-        ]
-        site_filter = " OR ".join(f"site:{d}" for d in trusted_domains)
-
-        title  = metadata.get("title", "")
-        artist = metadata.get("artist", "")
-        base_q = re.sub(r'\s*(audio|official audio)\s*$', '', query, flags=re.IGNORECASE).strip()
-
-        # چند search query برای امتحان
-        search_queries = list(dict.fromkeys(filter(None, [
-            f'({site_filter}) "{title}" {artist}'.strip() if title else "",
-            f'({site_filter}) {base_q}',
-            f'({site_filter}) {title}'.strip() if title else "",
-        ])))
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "fa-IR,fa;q=0.9,en-US;q=0.8",
-            "Referer": "https://www.google.com/",
-        }
-        import requests as req_lib
-
-        for sq in search_queries:
-            try:
-                logger.info(f"DDG search: {sq[:100]}")
-                with DDGS() as ddgs:
-                    results = list(ddgs.text(sq, max_results=8))
-            except Exception as e:
-                logger.warning(f"DDG search failed: {e}")
-                continue
-
-            for r in results:
-                page_url = r.get("href", "")
-                if not page_url or not any(d in page_url for d in trusted_domains):
-                    continue
-                logger.info(f"DDG → {page_url}")
-                try:
-                    pr = req_lib.get(page_url, headers=headers, timeout=12)
-                    if pr.status_code != 200:
-                        continue
-
-                    mp3_links = re.findall(
-                        r'(?:href|src|data-src|data-url|data-link|data-file)=["\']'
-                        r'(https?://[^"\']+\.mp3(?:[^"\']*)?)["\']',
-                        pr.text, re.IGNORECASE
-                    )
-                    if not mp3_links:
-                        mp3_links = re.findall(
-                            r'(https?://[^\s"\'<>]+\.mp3)',
-                            pr.text, re.IGNORECASE
-                        )
-
-                    if not mp3_links:
-                        logger.info(f"DDG: no MP3 on {page_url}")
-                        continue
-
-                    for mp3_url in list(dict.fromkeys(mp3_links))[:3]:
-                        logger.info(f"DDG: MP3 → {mp3_url[:80]}")
-                        result = self._download_direct_mp3(
-                            mp3_url, metadata,
-                            referer=page_url, session_headers=headers
-                        )
-                        if result["success"]:
-                            logger.info(f"DDG: ✓ download succeeded from {page_url}")
-                            return result
-                except Exception as e:
-                    logger.warning(f"DDG: error on {page_url}: {e}")
-                    continue
-
-        return {"success": False, "error": "DuckDuckGo: نتیجه‌ای پیدا نشد"}
-
-    def _download_direct_mp3(self, url: str, metadata: dict,
-                              referer: str = "", session_headers: dict = None) -> dict:
-        """دانلود مستقیم فایل MP3 از URL و embed تگ‌ها"""
-        import requests as req_lib
-
-        safe_title = re.sub(r'[\\/*?:"<>|]', "_", metadata.get("title") or "audio")
-        mp3_path = str(DOWNLOAD_DIR / f"{safe_title}_direct.mp3")
-
-        hdrs = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            **(session_headers or {}),
-        }
-        if referer:
-            hdrs["Referer"] = referer
-
-        try:
-            with req_lib.get(url, headers=hdrs, stream=True, timeout=60, allow_redirects=True) as r:
-                r.raise_for_status()
-                ct = r.headers.get("Content-Type", "")
-                if "text/html" in ct:
-                    return {"success": False, "error": "لینک MP3 به HTML ریدایرکت شد"}
-                with open(mp3_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=65536):
-                        if chunk:
-                            f.write(chunk)
-
-            size = Path(mp3_path).stat().st_size
-            if size < 100_000:
-                Path(mp3_path).unlink(missing_ok=True)
-                return {"success": False, "error": f"فایل دانلودی خیلی کوچیک بود ({size} bytes)"}
-
+            with yt_dlp.YoutubeDL(yt_flat_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch3:{query}", download=False)
+                yt_entries = info.get("entries") or []
         except Exception as e:
-            return {"success": False, "error": f"دانلود مستقیم ناموفق: {str(e)[:150]}"}
+            logger.warning(f"YouTube search failed: {e}")
 
-        thumb_path = None
-        if metadata.get("cover_url"):
-            thumb_path = self._download_cover(metadata["cover_url"], safe_title)
-        self._embed_tags(mp3_path, metadata, thumb_path)
+        last_err = "هیچ منبعی در دسترس نیست"
+        for entry in yt_entries:
+            vid_id = entry.get("id", "")
+            if not vid_id:
+                continue
+            result = self._try_download_url(
+                f"https://www.youtube.com/watch?v={vid_id}", quality, metadata
+            )
+            if result["success"]:
+                logger.info("YouTube download OK")
+                return result
+            last_err = result.get("error", last_err)
+            logger.warning(f"YT {vid_id} failed: {last_err}")
 
-        return {
-            "success": True,
-            "path": mp3_path,
-            "thumb": thumb_path,
-            "title": metadata.get("title", ""),
-            "artist": metadata.get("artist", ""),
-            "album": metadata.get("album", ""),
-            "lyrics": metadata.get("lyrics", ""),
-        }
+        return {"success": False, "error": f"دانلود ناموفق: {last_err}"}
 
     def _try_download_url(self, url: str, quality: str, metadata: dict) -> dict:
-        """دانلود یک URL مشخص با فرمت امن (بدون DRM)"""
         audio_quality = "320" if quality == "320" else "128"
         safe_title = re.sub(r'[\\/*?:"<>|]', "_", metadata.get("title") or "audio")
         out_tmpl = str(DOWNLOAD_DIR / f"{safe_title}_%(id)s.%(ext)s")
 
+        is_youtube = "youtube.com" in url or "youtu.be" in url
+        base_opts = _yt_opts_youtube() if is_youtube else _yt_opts_base()
+
         ydl_opts = {
+            **base_opts,
             "format": _SAFE_FORMAT,
             "outtmpl": out_tmpl,
-            "quiet": True,
-            "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": False,
-            **_yt_base_opts(),
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
@@ -659,34 +286,10 @@ class Downloader:
                 if "entries" in info:
                     info = info["entries"][0]
 
-                # ── تشخیص preview کوتاه (مثلاً SoundCloud) ──────────────────
-                expected_dur = metadata.get("duration", 0)  # ثانیه از Spotify
-                actual_dur   = info.get("duration") or 0
-                if expected_dur and actual_dur:
-                    ratio = actual_dur / expected_dur
-                    if ratio < 0.70:  # کمتر از ۷۰٪ → احتمالاً preview
-                        # فایل نیمه‌کاره رو حذف کن
-                        try:
-                            stem = Path(ydl.prepare_filename(info)).stem
-                            for f in DOWNLOAD_DIR.glob(f"{stem}*"):
-                                f.unlink(missing_ok=True)
-                        except Exception:
-                            pass
-                        logger.warning(
-                            f"Preview detected: {actual_dur:.0f}s vs expected {expected_dur}s "
-                            f"({ratio*100:.0f}%) — skipping {url[:60]}"
-                        )
-                        return {
-                            "success": False,
-                            "error": f"preview کوتاه ({actual_dur:.0f}s از {expected_dur}s)"
-                        }
-
-                # پیدا کردن فایل MP3
                 downloaded_path = self._find_mp3(ydl, info, safe_title)
                 if not downloaded_path:
                     return {"success": False, "error": "فایل MP3 ساخته نشد"}
 
-                # اگه متادیتا نداشتیم از yt-dlp بگیر
                 if not metadata.get("title"):
                     title = info.get("title", "Unknown")
                     parts = title.split(" - ", 1)
@@ -700,46 +303,10 @@ class Downloader:
 
         except yt_dlp.utils.DownloadError as e:
             err = str(e)
-            if "DRM" in err:
-                return {"success": False, "error": "DRM"}
-            # اگه فرمت نبود، یه‌بار دیگه با bestaudio ساده امتحان می‌کنیم
-            if "format is not available" in err.lower() or "requested format" in err.lower():
-                logger.warning(f"Format unavailable, retrying with bestaudio/best for {url[:60]}")
-                ydl_opts["format"] = "bestaudio/best"
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                        info2 = ydl2.extract_info(url, download=True)
-                        if info2 is None:
-                            return {"success": False, "error": "اطلاعاتی دریافت نشد (retry)"}
-                        if "entries" in info2:
-                            info2 = info2["entries"][0]
-                        downloaded_path = self._find_mp3(ydl2, info2, safe_title)
-                        if not downloaded_path:
-                            return {"success": False, "error": "فایل MP3 ساخته نشد (retry)"}
-                        if not metadata.get("title"):
-                            t = info2.get("title", "Unknown")
-                            p = t.split(" - ", 1)
-                            metadata = {
-                                "title": p[1].strip() if len(p) == 2 else t,
-                                "artist": p[0].strip() if len(p) == 2 else info2.get("uploader", ""),
-                                "album": "", "cover_url": info2.get("thumbnail", ""), "lyrics": "",
-                            }
-                        thumb_path2 = None
-                        if metadata.get("cover_url"):
-                            thumb_path2 = self._download_cover(metadata["cover_url"], safe_title)
-                        self._embed_tags(downloaded_path, metadata, thumb_path2)
-                        return {
-                            "success": True, "path": downloaded_path, "thumb": thumb_path2,
-                            "title": metadata.get("title", ""), "artist": metadata.get("artist", ""),
-                            "album": metadata.get("album", ""), "lyrics": metadata.get("lyrics", ""),
-                        }
-                except Exception as e2:
-                    return {"success": False, "error": str(e2)[:200]}
             return {"success": False, "error": err[:200]}
         except Exception as e:
             return {"success": False, "error": str(e)[:200]}
 
-        # تگ + کاور
         thumb_path = None
         if metadata.get("cover_url"):
             thumb_path = self._download_cover(metadata["cover_url"], safe_title)
@@ -773,8 +340,7 @@ class Downloader:
                 import syncedlyrics
                 lrc = syncedlyrics.search(f"{title} {artist}".strip(), plain_only=True)
                 if lrc:
-                    clean = re.sub(r'\[\d+:\d+\.\d+\]', '', lrc).strip()
-                    return clean[:4000]
+                    return re.sub(r'\[\d+:\d+\.\d+\]', '', lrc).strip()[:4000]
             except Exception as e:
                 logger.warning(f"Lyrics fetch failed: {e}")
             return ""
@@ -783,11 +349,6 @@ class Downloader:
 
     # ── آلبوم / پلی‌لیست ─────────────────────────────────────────────────────
     async def get_collection_tracks(self, url: str, kind: str) -> list[dict]:
-        """
-        لیست کامل آهنگ‌های پلی‌لیست یا آلبوم از صفحه embed اسپاتیفای.
-        از offset پیجیناسیون می‌کنه تا همه آهنگ‌ها رو بگیره.
-        هر آیتم: {url, title, artist, cover_url}
-        """
         loop = asyncio.get_event_loop()
         sp_id = re.search(r'spotify\.com/(?:album|playlist)/([A-Za-z0-9]+)', url)
         if not sp_id:
@@ -797,7 +358,7 @@ class Downloader:
         def _do():
             import requests as req_lib
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
             tracks = []
@@ -845,15 +406,100 @@ class Downloader:
                         "lyrics": "",
                     })
 
-                logger.info(f"offset={offset}: got {len(track_list)} items, {new_this_page} new — total {len(tracks)}")
-
-                # اگه هیچ آهنگ جدیدی نداشت یعنی به آخر رسیدیم
+                logger.info(f"offset={offset}: {new_this_page} new → total {len(tracks)}")
                 if new_this_page == 0:
                     break
-
                 offset += 50
 
-            logger.info(f"Total tracks fetched from {kind} {sp_id}: {len(tracks)}")
+            return tracks
+
+        return await loop.run_in_executor(None, _do)
+
+    # ── تمام آهنگ‌های یک خواننده ─────────────────────────────────────────────
+    async def get_artist_tracks(self, artist_url: str) -> list[dict]:
+        """
+        همه آهنگ‌های یک خواننده از Spotify API (anonymous token).
+        شامل همه آلبوم‌ها، سینگل‌ها و EP ها — بدون محدودیت ۵۰ تایی.
+        """
+        loop = asyncio.get_event_loop()
+        m = re.search(r'spotify\.com/artist/([A-Za-z0-9]+)', artist_url)
+        if not m:
+            return []
+        artist_id = m.group(1)
+
+        def _do():
+            import requests as req_lib
+            token = _get_spotify_token()
+            if not token:
+                logger.error("Could not get Spotify token for artist fetch")
+                return []
+
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "Mozilla/5.0",
+            }
+
+            # ── مرحله ۱: همه آلبوم‌ها/سینگل‌ها ──────────────────────────────
+            albums = []
+            url = (
+                f"https://api.spotify.com/v1/artists/{artist_id}/albums"
+                f"?include_groups=album,single&limit=50&market=US"
+            )
+            while url:
+                try:
+                    r = req_lib.get(url, headers=headers, timeout=12)
+                    r.raise_for_status()
+                    data = r.json()
+                    albums.extend(data.get("items", []))
+                    url = data.get("next")
+                except Exception as e:
+                    logger.warning(f"Albums fetch error: {e}")
+                    break
+
+            logger.info(f"Artist {artist_id}: {len(albums)} albums/singles found")
+
+            # ── مرحله ۲: همه آهنگ‌های هر آلبوم ──────────────────────────────
+            tracks = []
+            seen_ids = set()
+
+            for album in albums:
+                album_id = album.get("id", "")
+                album_name = album.get("name", "")
+                cover_url = ""
+                if album.get("images"):
+                    cover_url = album["images"][0].get("url", "")
+
+                alb_url = (
+                    f"https://api.spotify.com/v1/albums/{album_id}/tracks"
+                    f"?limit=50&market=US"
+                )
+                while alb_url:
+                    try:
+                        r = req_lib.get(alb_url, headers=headers, timeout=12)
+                        r.raise_for_status()
+                        data = r.json()
+                        for t in data.get("items", []):
+                            tid = t.get("id", "")
+                            if not tid or tid in seen_ids:
+                                continue
+                            seen_ids.add(tid)
+                            artist_names = ", ".join(
+                                a["name"] for a in (t.get("artists") or []) if a.get("name")
+                            )
+                            tracks.append({
+                                "url": f"https://open.spotify.com/track/{tid}",
+                                "title": t.get("name", ""),
+                                "artist": artist_names,
+                                "album": album_name,
+                                "cover_url": cover_url,
+                                "lyrics": "",
+                            })
+                        alb_url = data.get("next")
+                    except Exception as e:
+                        logger.warning(f"Album {album_id} tracks error: {e}")
+                        break
+
+            logger.info(f"Artist {artist_id}: total {len(tracks)} unique tracks")
             return tracks
 
         return await loop.run_in_executor(None, _do)
