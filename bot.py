@@ -21,7 +21,7 @@ dl = Downloader()
 
 
 def _extract_spotify_id(url: str) -> str:
-    m = re.search(r'spotify\.com/(?:track|album|playlist)/([A-Za-z0-9]+)', url)
+    m = re.search(r'spotify\.com/(?:track|album|playlist|artist)/([A-Za-z0-9]+)', url)
     return m.group(1) if m else ""
 
 
@@ -36,10 +36,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎵 *ربات دانلودر موزیک*\n\n"
         "می‌تونی:\n"
-        "🔗 لینک اسپاتیفای بفرستی (آهنگ / آلبوم / پلی‌لیست)\n"
+        "🔗 لینک اسپاتیفای بفرستی (آهنگ / آلبوم / پلی‌لیست / خواننده)\n"
         "🔍 اسم آهنگ یا آرتیست بنویسی\n\n"
         "مثال:\n"
         "`https://open.spotify.com/track/...`\n"
+        "`https://open.spotify.com/artist/...`\n"
         "`Blinding Lights The Weeknd`\n\n"
         "/help — راهنما",
         parse_mode="Markdown"
@@ -51,14 +52,15 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *راهنما*\n\n"
         "*ورودی‌های مجاز:*\n"
-        "• لینک آهنگ اسپاتیفای (دانلود فوری ۳۲۰kbps)\n"
+        "• لینک آهنگ اسپاتیفای\n"
         "• لینک آلبوم اسپاتیفای\n"
         "• لینک پلی‌لیست اسپاتیفای\n"
+        "• لینک خواننده اسپاتیفای (همه آهنگ‌ها)\n"
         "• اسم آهنگ (فارسی یا انگلیسی)\n\n"
         "*کیفیت:*\n"
-        "🔹 آهنگ: ۳۲۰kbps خودکار\n"
-        "🔹 آلبوم/پلی‌لیست: ۳۲۰ یا ۱۲۸ انتخابی\n\n"
-        "⚠️ پلی‌لیست‌های بزرگ زمان بیشتری می‌برن.",
+        "🔹 320kbps MP3\n"
+        "🔸 128kbps MP3\n\n"
+        "⚠️ لینک خواننده ممکنه صدها آهنگ داشته باشه.",
         parse_mode="Markdown"
     )
 
@@ -74,6 +76,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kind = "album"; emoji = "💿"; label = "آلبوم"
         elif "/playlist/" in text:
             kind = "playlist"; emoji = "📋"; label = "پلی‌لیست"
+        elif "/artist/" in text:
+            kind = "artist"; emoji = "🎤"; label = "خواننده"
         else:
             await update.message.reply_text("❌ لینک اسپاتیفای معتبر نیست.")
             return
@@ -87,12 +91,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🔹 320kbps", callback_data=f"dl|320|{kind}|{sp_id}"),
             InlineKeyboardButton("🔸 128kbps", callback_data=f"dl|128|{kind}|{sp_id}"),
         ]]
+        note = "\n⚠️ ممکنه صدها آهنگ باشه — زمان‌بر است." if kind == "artist" else ""
         await update.message.reply_text(
-            f"{emoji} *{label}* شناسایی شد.\nکیفیت دانلود رو انتخاب کن:",
+            f"{emoji} *{label}* شناسایی شد.\nکیفیت دانلود رو انتخاب کن:{note}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
+
     else:
+        # جستجو
         msg = await update.message.reply_text(f"🔍 جستجو: *{text}*...", parse_mode="Markdown")
         try:
             results = await dl.search(text, limit=5)
@@ -133,17 +140,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ نتایج منقضی شدن. دوباره جستجو کن.")
             return
         r = results[int(idx)]
-        title = r["title"]
-
         yt_key = f"yt_{key}_{idx}"
         context.bot_data[yt_key] = {"url": r["url"]}
-
         keyboard = [[
             InlineKeyboardButton("🔹 320kbps", callback_data=f"ytdl|320|{yt_key}"),
             InlineKeyboardButton("🔸 128kbps", callback_data=f"ytdl|128|{yt_key}"),
         ]]
         await query.edit_message_text(
-            f"🎵 *{title}*\n\nکیفیت رو انتخاب کن:",
+            f"🎵 *{r['title']}*\n\nکیفیت رو انتخاب کن:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
@@ -164,16 +168,68 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not stored:
             await query.edit_message_text("❌ نتایج منقضی شدن. دوباره جستجو کن.")
             return
-        url = stored["url"]
-        await run_download(update, context, url=url, kind="track", quality=quality, is_spotify=False)
+        await run_download(update, context, url=stored["url"], kind="track", quality=quality, is_spotify=False)
+
+
+# ── دانلود مجموعه آهنگ‌ها با progress bar ────────────────────────────────────
+async def _run_tracks(bot, chat_id, query_msg, tracks: list, quality: str, label: str):
+    """دانلود لیست آهنگ‌ها با progress bar زنده"""
+    total = len(tracks)
+    progress_msg = await bot.send_message(
+        chat_id,
+        f"📦 {total} آهنگ پیدا شد — شروع دانلود...\n{_bar(0, total)}"
+    )
+    try:
+        await query_msg.delete()
+    except Exception:
+        pass
+
+    ok = fail = 0
+    for i, track in enumerate(tracks, 1):
+        title_short = (track.get("title") or "")[:35]
+        try:
+            await progress_msg.edit_text(
+                f"⏳ {label} — {i}/{total}\n"
+                f"🎵 {title_short}\n"
+                f"{_bar(i - 1, total)}"
+            )
+        except Exception:
+            pass
+
+        try:
+            prefetch = {
+                "title": track.get("title", ""),
+                "artist": track.get("artist", ""),
+                "album": track.get("album", ""),
+                "cover_url": track.get("cover_url", ""),
+                "lyrics": "",
+            }
+            result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
+            await send_audio(bot, chat_id, result)
+            ok += 1
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.error(f"Track {i} failed: {e}")
+            fail += 1
+
+    try:
+        await progress_msg.edit_text(
+            f"✅ {label} تموم شد!\n"
+            f"{_bar(total, total)}\n"
+            f"✔️ موفق: {ok}   ❌ ناموفق: {fail}"
+        )
+    except Exception:
+        pass
 
 
 async def run_download(update, context, url, kind, quality, is_spotify):
     query = update.callback_query
     chat_id = query.message.chat_id
     q_label = "320kbps" if quality == "320" else "128kbps"
+    type_labels = {"track": "آهنگ", "album": "آلبوم", "playlist": "پلی‌لیست", "artist": "خواننده"}
+    type_label = type_labels.get(kind, kind)
 
-    await query.edit_message_text(f"⏳ دانلود آهنگ با کیفیت {q_label}...")
+    await query.edit_message_text(f"⏳ دانلود {type_label} با کیفیت {q_label}...")
 
     try:
         if kind == "track" or not is_spotify:
@@ -183,60 +239,22 @@ async def run_download(update, context, url, kind, quality, is_spotify):
                 await query.message.delete()
             except Exception:
                 pass
+
+        elif kind == "artist":
+            await query.edit_message_text("⏳ در حال دریافت لیست آهنگ‌های خواننده...")
+            tracks = await dl.get_artist_tracks(url)
+            if not tracks:
+                await context.bot.send_message(chat_id, "❌ نتونستم آهنگ‌های خواننده رو بگیرم.")
+                return
+            await _run_tracks(context.bot, chat_id, query.message, tracks, quality, "خواننده")
+
         else:
             await query.edit_message_text("⏳ در حال دریافت لیست آهنگ‌ها...")
             tracks = await dl.get_collection_tracks(url, kind)
-            total = len(tracks)
-            if not total:
+            if not tracks:
                 await context.bot.send_message(chat_id, "❌ نتونستم آهنگ‌های پلی‌لیست/آلبوم رو بگیرم.")
                 return
-
-            type_label = "آلبوم" if kind == "album" else "پلی‌لیست"
-            progress_msg = await context.bot.send_message(
-                chat_id,
-                f"📦 {total} آهنگ پیدا شد — شروع دانلود...\n{_bar(0, total)}"
-            )
-            try:
-                await query.message.delete()
-            except Exception:
-                pass
-
-            ok, fail = 0, 0
-            for i, track in enumerate(tracks, 1):
-                title_short = (track.get("title") or "")[:35]
-                try:
-                    await progress_msg.edit_text(
-                        f"⏳ {type_label} — {i}/{total}\n"
-                        f"🎵 {title_short}\n"
-                        f"{_bar(i - 1, total)}"
-                    )
-                except Exception:
-                    pass
-
-                try:
-                    prefetch = {
-                        "title": track.get("title", ""),
-                        "artist": track.get("artist", ""),
-                        "album": track.get("album", ""),
-                        "cover_url": track.get("cover_url", ""),
-                        "lyrics": "",
-                    }
-                    result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
-                    await send_audio(context.bot, chat_id, result)
-                    ok += 1
-                    await asyncio.sleep(1.5)
-                except Exception as e:
-                    logger.error(f"Track {i} failed: {e}")
-                    fail += 1
-
-            try:
-                await progress_msg.edit_text(
-                    f"✅ {type_label} تموم شد!\n"
-                    f"{_bar(total, total)}\n"
-                    f"✔️ موفق: {ok}   ❌ ناموفق: {fail}"
-                )
-            except Exception:
-                pass
+            await _run_tracks(context.bot, chat_id, query.message, tracks, quality, type_label)
 
     except Exception as e:
         logger.error(f"Download error: {e}")
@@ -248,15 +266,13 @@ async def send_audio(bot, chat_id, result):
         await bot.send_message(chat_id, f"❌ {result.get('error', 'خطای ناشناخته')}")
         return
 
-    title = result.get("title", "")
+    title  = result.get("title", "")
     artist = result.get("artist", "")
-    album = result.get("album", "")
+    album  = result.get("album", "")
 
     caption = f"🎵 {title}"
-    if artist:
-        caption += f"\n👤 {artist}"
-    if album:
-        caption += f"\n💿 {album}"
+    if artist: caption += f"\n👤 {artist}"
+    if album:  caption += f"\n💿 {album}"
 
     thumb = open(result["thumb"], "rb") if result.get("thumb") else None
     try:
@@ -267,8 +283,7 @@ async def send_audio(bot, chat_id, result):
                 thumbnail=thumb
             )
     finally:
-        if thumb:
-            thumb.close()
+        if thumb: thumb.close()
         for p in [result.get("path"), result.get("thumb")]:
             if p:
                 try: os.unlink(p)
@@ -294,7 +309,7 @@ def main():
     keep_alive()
 
     if os.environ.get("REPL_ID"):
-        logger.info("Running on Replit — Flask only (bot polling disabled to avoid Conflict with Render)")
+        logger.info("Running on Replit — Flask only (disabled to avoid Conflict with Render)")
         import time
         while True:
             time.sleep(60)
