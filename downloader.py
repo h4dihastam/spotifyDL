@@ -418,152 +418,142 @@ class Downloader:
     # ── تمام آهنگ‌های یک خواننده ─────────────────────────────────────────────
     async def get_artist_tracks(self, artist_url: str) -> list[dict]:
         """
-        همه آهنگ‌های خواننده از طریق embed page — بدون نیاز به توکن API.
+        Deezer API کاملاً رایگان است، نیاز به API key ندارد، از Render IP بلاک نمی‌شه.
         مراحل:
-          1. از embed artist page لیست آلبوم‌ها رو بگیر
-          2. برای هر آلبوم از get_collection_tracks استفاده کن (که قبلاً کار می‌کنه)
+          1. اسم خواننده از Spotify embed page
+          2. جستجوی خواننده در Deezer
+          3. دریافت همه آلبوم‌ها و آهنگ‌ها از Deezer
         """
         m = re.search(r'spotify\.com/artist/([A-Za-z0-9]+)', artist_url)
         if not m:
             return []
         artist_id = m.group(1)
 
-        # ── مرحله ۱: لیست آلبوم‌ها از embed page ─────────────────────────────
-        album_ids = await self._get_artist_album_ids(artist_id)
-        if not album_ids:
-            logger.error(f"No albums found for artist {artist_id}")
-            return []
-
-        logger.info(f"Artist {artist_id}: {len(album_ids)} albums found")
-
-        # ── مرحله ۲: آهنگ‌های هر آلبوم ──────────────────────────────────────
-        all_tracks: list[dict] = []
-        seen_track_ids: set[str] = set()
-
-        for album_id, album_name in album_ids:
-            album_url = f"https://open.spotify.com/album/{album_id}"
-            try:
-                tracks = await self.get_collection_tracks(album_url, "album")
-                for t in tracks:
-                    tid_m = re.search(r'/track/([A-Za-z0-9]+)', t.get("url", ""))
-                    if not tid_m:
-                        continue
-                    tid = tid_m.group(1)
-                    if tid in seen_track_ids:
-                        continue
-                    seen_track_ids.add(tid)
-                    if album_name:
-                        t["album"] = album_name
-                    all_tracks.append(t)
-                logger.info(f"Album {album_id}: {len(tracks)} tracks → total {len(all_tracks)}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch album {album_id}: {e}")
-
-        logger.info(f"Artist {artist_id}: {len(all_tracks)} unique tracks total")
-        return all_tracks
-
-    async def _get_artist_album_ids(self, artist_id: str) -> list[tuple[str, str]]:
-        """
-        لیست (album_id, album_name) از embed artist page اسپاتیفای.
-        اگر embed جواب نداد از __NEXT_DATA__ صفحه اصلی هم تلاش می‌کنه.
-        """
         loop = asyncio.get_event_loop()
 
         def _do():
             import requests as req_lib
+            import time
+
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
 
-            album_ids: list[tuple[str, str]] = []
-            seen: set[str] = set()
-
-            def _extract_albums_from_json(data: dict):
-                """ریشه‌یابی آلبوم‌ها در ساختار JSON"""
-                try:
+            # ── مرحله ۱: اسم خواننده از embed Spotify ───────────────────────
+            artist_name = ""
+            try:
+                r = req_lib.get(
+                    f"https://open.spotify.com/embed/artist/{artist_id}",
+                    headers=headers, timeout=12
+                )
+                r.raise_for_status()
+                nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+                if nm:
+                    data = json.loads(nm.group(1))
                     entity = data["props"]["pageProps"]["state"]["data"]["entity"]
-                except (KeyError, TypeError):
-                    return
+                    artist_name = (
+                        entity.get("profile", {}).get("name", "")
+                        or entity.get("name", "")
+                    )
+            except Exception as e:
+                logger.warning(f"Could not get artist name from Spotify embed: {e}")
 
-                # حالت ۱: discography در entity
-                discog = entity.get("discography") or {}
-                for section_key in ("all", "albums", "singles", "popularReleases"):
-                    section = discog.get(section_key) or {}
-                    items = section.get("items") or []
-                    for item in items:
-                        releases = item.get("releases") or {}
-                        for rel in (releases.get("items") or []):
-                            aid = rel.get("id", "")
-                            aname = rel.get("name", "")
-                            if aid and aid not in seen:
-                                seen.add(aid)
-                                album_ids.append((aid, aname))
+            if not artist_name:
+                logger.error(f"Could not resolve artist name for {artist_id}")
+                return []
 
-                # حالت ۲: مستقیم trackList (اگه embed آهنگ‌ها رو نشون داد)
-                track_list = entity.get("trackList") or []
-                for t in track_list:
-                    uri = t.get("uri", "")
-                    parts = uri.split(":")
-                    if len(parts) == 3 and parts[1] == "album":
-                        if parts[2] not in seen:
-                            seen.add(parts[2])
-                            album_ids.append((parts[2], t.get("albumTitle", "")))
+            logger.info(f"Artist name: {artist_name}")
 
-            # تلاش ۱: صفحه اصلی artist (اگه با JS رندر نشه، __NEXT_DATA__ داره)
-            for attempt_url in [
-                f"https://open.spotify.com/artist/{artist_id}/discography/all",
-                f"https://open.spotify.com/artist/{artist_id}",
-            ]:
+            # ── مرحله ۲: پیدا کردن خواننده در Deezer ─────────────────────────
+            deezer_artist_id = None
+            deezer_artist_name = ""
+            try:
+                r = req_lib.get(
+                    "https://api.deezer.com/search/artist",
+                    params={"q": artist_name, "limit": 5},
+                    headers=headers, timeout=10
+                )
+                r.raise_for_status()
+                results = r.json().get("data", [])
+                if results:
+                    best = next(
+                        (x for x in results if x.get("name", "").lower() == artist_name.lower()),
+                        results[0]
+                    )
+                    deezer_artist_id = best["id"]
+                    deezer_artist_name = best.get("name", artist_name)
+                    logger.info(f"Deezer match: {deezer_artist_name} (id={deezer_artist_id})")
+            except Exception as e:
+                logger.warning(f"Deezer artist search failed: {e}")
+
+            if not deezer_artist_id:
+                logger.error(f"Could not find '{artist_name}' on Deezer")
+                return []
+
+            # ── مرحله ۳: همه آلبوم‌ها از Deezer ─────────────────────────────
+            albums = []
+            next_url = f"https://api.deezer.com/artist/{deezer_artist_id}/albums?limit=50"
+            while next_url:
                 try:
-                    r = req_lib.get(attempt_url, headers=headers, timeout=15)
+                    r = req_lib.get(next_url, headers=headers, timeout=10)
                     r.raise_for_status()
-                    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
-                    if nm:
-                        _extract_albums_from_json(json.loads(nm.group(1)))
-                        if album_ids:
-                            logger.info(f"Got {len(album_ids)} albums from {attempt_url}")
-                            break
+                    data = r.json()
+                    albums.extend(data.get("data", []))
+                    next_url = data.get("next")
+                    time.sleep(0.05)
                 except Exception as e:
-                    logger.warning(f"Artist page fetch failed ({attempt_url}): {e}")
+                    logger.warning(f"Deezer albums page error: {e}")
+                    break
 
-            # تلاش ۲: embed artist page
-            if not album_ids:
+            logger.info(f"Deezer: {len(albums)} albums for '{deezer_artist_name}'")
+
+            # ── مرحله ۴: همه آهنگ‌های هر آلبوم ──────────────────────────────
+            all_tracks: list[dict] = []
+            seen_keys: set[str] = set()
+
+            for album in albums:
+                alb_id = album.get("id")
+                alb_name = album.get("title", "")
+                cover = (
+                    album.get("cover_xl")
+                    or album.get("cover_big")
+                    or album.get("cover", "")
+                )
                 try:
                     r = req_lib.get(
-                        f"https://open.spotify.com/embed/artist/{artist_id}",
-                        headers=headers, timeout=15
+                        f"https://api.deezer.com/album/{alb_id}/tracks",
+                        params={"limit": 100},
+                        headers=headers, timeout=10
                     )
                     r.raise_for_status()
-                    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
-                    if nm:
-                        _extract_albums_from_json(json.loads(nm.group(1)))
-                        logger.info(f"Got {len(album_ids)} albums from embed page")
-                except Exception as e:
-                    logger.warning(f"Embed artist page fetch failed: {e}")
+                    for t in r.json().get("data", []):
+                        title = t.get("title") or t.get("title_short", "")
+                        contributors = t.get("contributors") or []
+                        t_artist = ", ".join(
+                            c["name"] for c in contributors if c.get("name")
+                        ) or deezer_artist_name
 
-            # تلاش ۳: internal Spotify partner API (بدون نیاز به OAuth)
-            if not album_ids:
-                try:
-                    params = {
-                        "operationName": "queryArtistDiscographyAll",
-                        "variables": json.dumps({
-                            "uri": f"spotify:artist:{artist_id}",
-                            "offset": 0, "limit": 50
-                        }),
-                        "extensions": json.dumps({
-                            "persistedQuery": {
-                                "version": 1,
-                                "sha256Hash": "35a699e85a22a6f8e9c5747e3f67e6c3e52c6e7e4c5d9c8a3f2b1e0d9c8b7a6"
-                            }
+                        key = f"{title.lower().strip()}|{t_artist.lower().strip()}"
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+
+                        all_tracks.append({
+                            "url": f"https://open.spotify.com/artist/{artist_id}",
+                            "title": title,
+                            "artist": t_artist,
+                            "album": alb_name,
+                            "cover_url": cover,
+                            "lyrics": "",
+                            "duration_sec": t.get("duration", 0),
                         })
-                    }
-                    # این API نیاز به توکن داره — skip اگه token endpoint بلاکه
-                    logger.warning("All methods exhausted for artist album fetch")
-                except Exception:
-                    pass
+                    time.sleep(0.05)
+                except Exception as e:
+                    logger.warning(f"Deezer album {alb_id} tracks error: {e}")
 
-            return album_ids
+            logger.info(f"Deezer: {len(all_tracks)} unique tracks for '{deezer_artist_name}'")
+            return all_tracks
 
         return await loop.run_in_executor(None, _do)
 
