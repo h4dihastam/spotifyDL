@@ -56,9 +56,10 @@ def _yt_base_opts() -> dict:
     """گزینه‌های پایه یوتیوب: چند player client + کوکی اگه داریم"""
     opts: dict = {
         "extractor_args": {
-            # android_music روی cloud IP استریم HTTP قابل دانلود برمی‌گردونه
-            # tv_embedded و mweb fallback های قابل اعتماد هستن
-            "youtube": {"player_client": ["android_music", "tv_embedded", "mweb"]}
+            # tv_embedded: روی cloud IP ها کار می‌کنه و فرمت‌های صوتی کامل می‌ده
+            # android_music: در بعضی موارد مفیده ولی روی بعضی cloud IP ها "format not available" می‌ده
+            # web: fallback عمومی
+            "youtube": {"player_client": ["tv_embedded", "android_music", "web"]}
         },
     }
     if _YT_COOKIE_FILE:
@@ -227,35 +228,10 @@ class Downloader:
                 return {"success": False, "error": f"همه نتایج ناموفق بودن: {last_err}"}
             logger.warning("YouTube blocked on this IP — trying SoundCloud fallback")
 
-        # ── SoundCloud fallback ───────────────────────────────────────────────
-        logger.info(f"Trying SoundCloud for: {query}")
-        sc_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": True,
-            "skip_download": True,
-        }
-        try:
-            with yt_dlp.YoutubeDL(sc_opts) as ydl:
-                sc_info = ydl.extract_info(f"scsearch5:{query}", download=False)
-                sc_entries = sc_info.get("entries") or []
-        except Exception as e:
-            logger.error(f"SoundCloud search failed: {e}")
-            return {"success": False, "error": "یوتیوب و ساندکلاد هر دو در دسترس نیستن"}
-
-        if not sc_entries:
-            return {"success": False, "error": "نتیجه‌ای پیدا نشد (نه YouTube، نه SoundCloud)"}
-
-        last_err = "خطای ناشناخته"
-        for entry in sc_entries:
-            sc_url = entry.get("url") or entry.get("webpage_url", "")
-            if not sc_url:
-                continue
-            result = self._try_download_url(sc_url, quality, metadata)
-            if result["success"]:
-                logger.info("SoundCloud download succeeded")
-                return result
-            last_err = result.get("error", last_err)
+        # ── SoundCloud fallback (فیلتر preview) ──────────────────────────────
+        sc_result = self._soundcloud_full_download(query, quality, metadata)
+        if sc_result["success"]:
+            return sc_result
 
         # ── YouTube Music fallback ────────────────────────────────────────────
         logger.info(f"Trying YouTube Music for: {query}")
@@ -306,6 +282,79 @@ class Downloader:
             return ddg_result
 
         return {"success": False, "error": "نتیجه‌ای پیدا نشد (YouTube، SoundCloud، YouTube Music، سایت‌های موزیک ایرانی، DuckDuckGo)"}
+
+    def _soundcloud_full_download(self, query: str, quality: str, metadata: dict) -> dict:
+        """
+        جستجو در SoundCloud و دانلود فقط آهنگ‌های کامل (نه preview).
+        ابتدا از soundcloud-v2 استفاده می‌کنه که خودش preview ها رو فیلتر می‌کنه.
+        اگه اون fail شد به scsearch یوتیوب-دی‌ال‌پی fallback می‌کنه.
+        """
+        logger.info(f"Trying SoundCloud (full tracks only) for: {query}")
+
+        # ── روش اول: soundcloud-v2 که preview ها رو فیلتر می‌کنه ─────────────
+        try:
+            from soundcloud import SoundCloud as SC2
+            client = SC2()
+            sc_results = list(client.search_tracks(query))
+
+            for track in sc_results[:8]:
+                # فیلتر preview — مثل spotdl که از این تکنیک استفاده می‌کنه
+                try:
+                    transcoding_url = track.media.transcodings[0].url if track.media.transcodings else ""
+                    if "/preview/" in transcoding_url:
+                        logger.info(f"SC2: skipping preview track: {track.title}")
+                        continue
+                except Exception:
+                    pass
+
+                # بررسی مدت زمان قبل از دانلود
+                expected_dur = metadata.get("duration", 0)
+                if expected_dur and track.full_duration:
+                    track_sec = track.full_duration / 1000
+                    if track_sec < expected_dur * 0.70:
+                        logger.info(f"SC2: skipping short track {track_sec:.0f}s vs {expected_dur}s")
+                        continue
+
+                sc_url = track.permalink_url
+                if not sc_url:
+                    continue
+
+                logger.info(f"SC2: trying {sc_url[:70]}")
+                result = self._try_download_url(sc_url, quality, metadata)
+                if result["success"]:
+                    logger.info("SoundCloud (soundcloud-v2) download succeeded")
+                    return result
+
+        except ImportError:
+            logger.warning("soundcloud-v2 not installed, falling back to scsearch")
+        except Exception as e:
+            logger.warning(f"soundcloud-v2 search failed: {e}")
+
+        # ── روش دوم: scsearch از yt-dlp ──────────────────────────────────────
+        sc_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
+            "skip_download": True,
+        }
+        try:
+            with yt_dlp.YoutubeDL(sc_opts) as ydl:
+                sc_info = ydl.extract_info(f"scsearch8:{query}", download=False)
+                sc_entries = sc_info.get("entries") or []
+        except Exception as e:
+            logger.error(f"SoundCloud scsearch failed: {e}")
+            return {"success": False, "error": "SoundCloud در دسترس نیست"}
+
+        for entry in sc_entries:
+            sc_url = entry.get("url") or entry.get("webpage_url", "")
+            if not sc_url:
+                continue
+            result = self._try_download_url(sc_url, quality, metadata)
+            if result["success"]:
+                logger.info("SoundCloud (scsearch) download succeeded")
+                return result
+
+        return {"success": False, "error": "SoundCloud: نتیجه کامل پیدا نشد"}
 
     def _persian_sites_download(self, query: str, quality: str, metadata: dict) -> dict:
         """

@@ -6,3 +6,5 @@ flask
 requests
 syncedlyrics
 duckduckgo-search>=6.0.0
+spotdl>=4.5.0
+soundcloud-v2
