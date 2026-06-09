@@ -69,26 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "spotify.com" in text:
         if "/track/" in text:
-            sp_id = _extract_spotify_id(text)
-            if not sp_id:
-                await update.message.reply_text("❌ نتونستم ID اسپاتیفای رو پیدا کنم.")
-                return
-            url = f"https://open.spotify.com/track/{sp_id}"
-            # آهنگ single: دانلود فوری بدون نیاز به دکمه
-            msg = await update.message.reply_text("⏳ دانلود آهنگ با کیفیت 320kbps...")
-            try:
-                result = await dl.download_one(url, "320", True)
-                await send_audio(context.bot, update.message.chat_id, result)
-            except Exception as e:
-                logger.error(f"Track download error: {e}")
-                await context.bot.send_message(update.message.chat_id, f"❌ خطا:\n{str(e)[:300]}")
-            finally:
-                try:
-                    await msg.delete()
-                except Exception:
-                    pass
-            return
-
+            kind = "track"; emoji = "🎵"; label = "آهنگ"
         elif "/album/" in text:
             kind = "album"; emoji = "💿"; label = "آلبوم"
         elif "/playlist/" in text:
