@@ -61,11 +61,11 @@ def _yt_opts_base() -> dict:
 
 
 def _yt_opts_youtube() -> dict:
-    """گزینه‌های اضافه برای YouTube — فقط tv_embedded (کمترین fragmentation)"""
+    """گزینه‌های اضافه برای YouTube — tv_embedded اول، web به عنوان fallback"""
     return {
         **_yt_opts_base(),
         "extractor_args": {
-            "youtube": {"player_client": ["tv_embedded"]}
+            "youtube": {"player_client": ["tv_embedded", "web"]}
         },
         "concurrent_fragment_downloads": 5,
     }
@@ -434,14 +434,76 @@ class Downloader:
         def _do():
             import requests as req_lib
             import time
+            from difflib import SequenceMatcher
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
 
-            # ── مرحله ۱: اسم خواننده از embed Spotify ───────────────────────
+            def _sim(a: str, b: str) -> float:
+                return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
+
+            # ── تابع fallback: top tracks از embed Spotify ────────────────────
+            def _top_tracks_from_embed(entity: dict) -> list[dict]:
+                """
+                وقتی Deezer خواننده رو پیدا نکرد، از top tracks درج‌شده در
+                embed page اسپاتیفای استفاده می‌کنیم.
+                """
+                tracks_out = []
+                seen = set()
+                top = entity.get("topTracks") or {}
+                items = top.get("items") or []
+                for item in items:
+                    t = item.get("track") or item
+                    title = t.get("name", "")
+                    if not title:
+                        continue
+                    # آرتیست‌ها
+                    raw_artists = t.get("artists") or t.get("artist", {})
+                    if isinstance(raw_artists, list):
+                        t_artist = ", ".join(
+                            (a.get("profile", {}).get("name") or a.get("name", ""))
+                            for a in raw_artists if a
+                        )
+                    elif isinstance(raw_artists, dict):
+                        t_artist = raw_artists.get("name", "") or artist_name
+                    else:
+                        t_artist = artist_name
+                    if not t_artist:
+                        t_artist = artist_name
+
+                    # کاور
+                    alb = t.get("albumOfTrack") or t.get("album") or {}
+                    cover = ""
+                    ca = alb.get("coverArt") or {}
+                    srcs = ca.get("sources") or []
+                    if srcs:
+                        cover = max(srcs, key=lambda s: s.get("width", 0) or 0).get("url", "")
+                    alb_name = alb.get("name", "")
+
+                    dur_ms = t.get("duration", {})
+                    dur_sec = int(dur_ms.get("totalMilliseconds", 0) / 1000) if isinstance(dur_ms, dict) else int((dur_ms or 0) / 1000)
+
+                    tid = t.get("id") or title
+                    if tid in seen:
+                        continue
+                    seen.add(tid)
+                    tracks_out.append({
+                        "url": f"https://open.spotify.com/artist/{artist_id}",
+                        "title": title,
+                        "artist": t_artist.strip(", "),
+                        "album": alb_name,
+                        "cover_url": cover,
+                        "lyrics": "",
+                        "duration_sec": dur_sec,
+                    })
+                logger.info(f"Spotify embed top tracks: {len(tracks_out)} found")
+                return tracks_out
+
+            # ── مرحله ۱: اسم خواننده + entity از embed Spotify ──────────────
             artist_name = ""
+            entity: dict = {}
             try:
                 r = req_lib.get(
                     f"https://open.spotify.com/embed/artist/{artist_id}",
@@ -465,31 +527,44 @@ class Downloader:
 
             logger.info(f"Artist name: {artist_name}")
 
-            # ── مرحله ۲: پیدا کردن خواننده در Deezer ─────────────────────────
+            # ── مرحله ۲: پیدا کردن خواننده در Deezer با بررسی شباهت ─────────
             deezer_artist_id = None
             deezer_artist_name = ""
             try:
                 r = req_lib.get(
                     "https://api.deezer.com/search/artist",
-                    params={"q": artist_name, "limit": 5},
+                    params={"q": artist_name, "limit": 10},
                     headers=headers, timeout=10
                 )
                 r.raise_for_status()
                 results = r.json().get("data", [])
                 if results:
-                    best = next(
+                    exact = next(
                         (x for x in results if x.get("name", "").lower() == artist_name.lower()),
-                        results[0]
+                        None
                     )
-                    deezer_artist_id = best["id"]
-                    deezer_artist_name = best.get("name", artist_name)
-                    logger.info(f"Deezer match: {deezer_artist_name} (id={deezer_artist_id})")
+                    if exact:
+                        best, sim = exact, 1.0
+                    else:
+                        best = max(results, key=lambda x: _sim(artist_name, x.get("name", "")))
+                        sim = _sim(artist_name, best.get("name", ""))
+
+                    logger.info(f"Deezer best match: '{best.get('name')}' (sim={sim:.2f})")
+
+                    if sim >= 0.6:
+                        deezer_artist_id = best["id"]
+                        deezer_artist_name = best.get("name", artist_name)
+                    else:
+                        logger.warning(
+                            f"Deezer mismatch (sim={sim:.2f}): '{artist_name}' ≠ '{best.get('name')}'"
+                            " — falling back to Spotify top tracks"
+                        )
             except Exception as e:
                 logger.warning(f"Deezer artist search failed: {e}")
 
+            # ── Deezer پیدا نشد → top tracks از Spotify embed ────────────────
             if not deezer_artist_id:
-                logger.error(f"Could not find '{artist_name}' on Deezer")
-                return []
+                return _top_tracks_from_embed(entity)
 
             # ── مرحله ۳: همه آلبوم‌ها از Deezer ─────────────────────────────
             albums = []
