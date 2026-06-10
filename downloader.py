@@ -527,18 +527,17 @@ class Downloader:
                     "Accept": "application/json",
                 }
 
-                # اسم خواننده
+                # اسم خواننده (اگه 403 بود ادامه می‌دیم)
+                a_name = ""
                 try:
                     r = req_lib.get(
                         f"https://api.spotify.com/v1/artists/{artist_id}",
                         headers=auth_headers, timeout=10
                     )
                     r.raise_for_status()
-                    artist_data = r.json()
-                    a_name = artist_data.get("name", "")
+                    a_name = r.json().get("name", "")
                 except Exception as e:
-                    logger.warning(f"Spotify API artist info failed: {e}")
-                    return None
+                    logger.warning(f"Spotify API artist info failed: {e} — continuing with albums")
 
                 # همه آلبوم‌ها (album + single)
                 albums = []
@@ -663,15 +662,22 @@ class Downloader:
                         best = max(results, key=lambda x: _sim(artist_name, x.get("name", "")))
                         sim = _sim(artist_name, best.get("name", ""))
 
-                    logger.info(f"Deezer best match: '{best.get('name')}' (sim={sim:.2f})")
+                    # بررسی نسبت طول اسم (جلوگیری از Matzak ≈ Matarzak)
+                    la, lb = len(artist_name), len(best.get("name", ""))
+                    len_ratio = min(la, lb) / max(la, lb) if max(la, lb) > 0 else 0.0
 
-                    if sim >= 0.6:
+                    logger.info(
+                        f"Deezer best match: '{best.get('name')}' "
+                        f"(sim={sim:.2f}, len_ratio={len_ratio:.2f})"
+                    )
+
+                    if sim >= 0.80 and len_ratio >= 0.80:
                         deezer_artist_id = best["id"]
                         deezer_artist_name = best.get("name", artist_name)
                     else:
                         logger.warning(
-                            f"Deezer mismatch (sim={sim:.2f}): '{artist_name}' ≠ '{best.get('name')}'"
-                            " — falling back to Spotify top tracks"
+                            f"Deezer mismatch: '{artist_name}' ≠ '{best.get('name')}' "
+                            f"(sim={sim:.2f}, len_ratio={len_ratio:.2f}) — falling back to Spotify top tracks"
                         )
             except Exception as e:
                 logger.warning(f"Deezer artist search failed: {e}")
