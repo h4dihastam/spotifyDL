@@ -71,36 +71,48 @@ def _yt_opts_youtube() -> dict:
     }
 
 
-# ── اسپاتیفای anonymous token ─────────────────────────────────────────────────
-_sp_token: Optional[str] = None
-_sp_token_expiry: float = 0.0
+# ── Spotify Client Credentials token (اگه env var تنظیم شده) ─────────────────
+_sp_cc_token: Optional[str] = None
+_sp_cc_expiry: float = 0.0
 
-def _get_spotify_token() -> Optional[str]:
+def _get_spotify_cc_token() -> Optional[str]:
     """
-    توکن anonymous اسپاتیفای (بدون نیاز به API Key).
-    کش می‌شه تا expire بشه.
+    توکن Spotify با Client Credentials flow.
+    نیاز به SPOTIFY_CLIENT_ID و SPOTIFY_CLIENT_SECRET در env vars دارد.
+    از هر IP کار می‌کنه — بلاک نمی‌شه.
     """
     import time
+    import base64
     import requests as req_lib
-    global _sp_token, _sp_token_expiry
+    global _sp_cc_token, _sp_cc_expiry
 
-    if _sp_token and time.time() < _sp_token_expiry - 30:
-        return _sp_token
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret:
+        return None
+
+    if _sp_cc_token and time.time() < _sp_cc_expiry - 30:
+        return _sp_cc_token
 
     try:
-        r = req_lib.get(
-            "https://open.spotify.com/get_access_token?reason=transport&productType=web_player",
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+        creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        r = req_lib.post(
+            "https://accounts.spotify.com/api/token",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data="grant_type=client_credentials",
             timeout=10
         )
         r.raise_for_status()
         data = r.json()
-        _sp_token = data.get("accessToken")
-        expiry_ms = data.get("accessTokenExpirationTimestampMs", 0)
-        _sp_token_expiry = expiry_ms / 1000 if expiry_ms else time.time() + 3600
-        return _sp_token
+        _sp_cc_token = data.get("access_token")
+        _sp_cc_expiry = time.time() + data.get("expires_in", 3600)
+        logger.info("Spotify CC token refreshed ✓")
+        return _sp_cc_token
     except Exception as e:
-        logger.warning(f"Spotify token fetch failed: {e}")
+        logger.warning(f"Spotify CC token failed: {e}")
         return None
 
 
@@ -418,11 +430,10 @@ class Downloader:
     # ── تمام آهنگ‌های یک خواننده ─────────────────────────────────────────────
     async def get_artist_tracks(self, artist_url: str) -> list[dict]:
         """
-        Deezer API کاملاً رایگان است، نیاز به API key ندارد، از Render IP بلاک نمی‌شه.
-        مراحل:
-          1. اسم خواننده از Spotify embed page
-          2. جستجوی خواننده در Deezer
-          3. دریافت همه آلبوم‌ها و آهنگ‌ها از Deezer
+        اولویت‌بندی منابع:
+          1. Spotify API (Client Credentials) — اگه SPOTIFY_CLIENT_ID/SECRET تنظیم شده
+          2. Deezer API                        — رایگان، بدون auth، برای خواننده‌های غربی
+          3. Spotify embed top tracks          — fallback برای خواننده‌هایی که جای دیگه نیستن
         """
         m = re.search(r'spotify\.com/artist/([A-Za-z0-9]+)', artist_url)
         if not m:
@@ -500,6 +511,109 @@ class Downloader:
                     })
                 logger.info(f"Spotify embed top tracks: {len(tracks_out)} found")
                 return tracks_out
+
+            # ── مسیر ۱ (اگه credentials داریم): Spotify API کامل ─────────────
+            def _spotify_api_discography() -> Optional[list[dict]]:
+                """
+                با Client Credentials token همه آلبوم‌ها و آهنگ‌های خواننده رو
+                از Spotify API رسمی می‌گیریم. از هر IP بلاک نمی‌شه.
+                """
+                token = _get_spotify_cc_token()
+                if not token:
+                    return None
+
+                auth_headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                }
+
+                # اسم خواننده
+                try:
+                    r = req_lib.get(
+                        f"https://api.spotify.com/v1/artists/{artist_id}",
+                        headers=auth_headers, timeout=10
+                    )
+                    r.raise_for_status()
+                    artist_data = r.json()
+                    a_name = artist_data.get("name", "")
+                except Exception as e:
+                    logger.warning(f"Spotify API artist info failed: {e}")
+                    return None
+
+                # همه آلبوم‌ها (album + single)
+                albums = []
+                url = (
+                    f"https://api.spotify.com/v1/artists/{artist_id}/albums"
+                    "?include_groups=album,single&limit=50&market=US"
+                )
+                while url:
+                    try:
+                        r = req_lib.get(url, headers=auth_headers, timeout=10)
+                        r.raise_for_status()
+                        page = r.json()
+                        albums.extend(page.get("items", []))
+                        url = page.get("next")
+                        time.sleep(0.05)
+                    except Exception as e:
+                        logger.warning(f"Spotify API albums page error: {e}")
+                        break
+
+                logger.info(f"Spotify API: {len(albums)} albums for '{a_name}'")
+
+                all_tracks: list[dict] = []
+                seen_keys: set[str] = set()
+
+                for album in albums:
+                    alb_id = album.get("id", "")
+                    alb_name = album.get("name", "")
+                    images = album.get("images") or []
+                    cover = images[0].get("url", "") if images else ""
+
+                    tracks_url = (
+                        f"https://api.spotify.com/v1/albums/{alb_id}/tracks?limit=50&market=US"
+                    )
+                    while tracks_url:
+                        try:
+                            r = req_lib.get(tracks_url, headers=auth_headers, timeout=10)
+                            r.raise_for_status()
+                            tpage = r.json()
+                            for t in tpage.get("items", []):
+                                title = t.get("name", "")
+                                if not title:
+                                    continue
+                                t_artist = ", ".join(
+                                    a.get("name", "") for a in (t.get("artists") or [])
+                                )
+                                key = f"{title.lower()}|{t_artist.lower()}"
+                                if key in seen_keys:
+                                    continue
+                                seen_keys.add(key)
+                                dur_sec = int((t.get("duration_ms") or 0) / 1000)
+                                sp_url = (
+                                    (t.get("external_urls") or {}).get("spotify", "")
+                                    or f"https://open.spotify.com/track/{t.get('id', '')}"
+                                )
+                                all_tracks.append({
+                                    "url": sp_url,
+                                    "title": title,
+                                    "artist": t_artist,
+                                    "album": alb_name,
+                                    "cover_url": cover,
+                                    "lyrics": "",
+                                    "duration_sec": dur_sec,
+                                })
+                            tracks_url = tpage.get("next")
+                            time.sleep(0.05)
+                        except Exception as e:
+                            logger.warning(f"Spotify API tracks page error: {e}")
+                            break
+
+                logger.info(f"Spotify API: {len(all_tracks)} tracks total for '{a_name}'")
+                return all_tracks if all_tracks else None
+
+            sp_api_result = _spotify_api_discography()
+            if sp_api_result is not None:
+                return sp_api_result
 
             # ── مرحله ۱: اسم خواننده + entity از embed Spotify ──────────────
             artist_name = ""
