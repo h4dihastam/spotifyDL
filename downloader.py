@@ -455,61 +455,139 @@ class Downloader:
             def _sim(a: str, b: str) -> float:
                 return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
-            # ── تابع fallback: top tracks از embed Spotify ────────────────────
+            # ── helpers مشترک ─────────────────────────────────────────────────
+            def _parse_track_item(t: dict, alb_name: str = "", cover_fallback: str = "") -> Optional[dict]:
+                """یک track dict رو به فرمت خروجی تبدیل می‌کنه."""
+                title = t.get("name", "")
+                if not title:
+                    return None
+                raw_artists = t.get("artists") or t.get("artist", {})
+                if isinstance(raw_artists, list):
+                    t_artist = ", ".join(
+                        (a.get("profile", {}).get("name") or a.get("name", ""))
+                        for a in raw_artists if a
+                    )
+                elif isinstance(raw_artists, dict):
+                    t_artist = raw_artists.get("name", "") or artist_name
+                else:
+                    t_artist = artist_name
+                if not t_artist:
+                    t_artist = artist_name
+
+                alb = t.get("albumOfTrack") or t.get("album") or {}
+                cover = cover_fallback
+                ca = alb.get("coverArt") or {}
+                srcs = ca.get("sources") or []
+                if srcs:
+                    cover = max(srcs, key=lambda s: s.get("width", 0) or 0).get("url", "")
+                a_name = alb.get("name", "") or alb_name
+
+                dur_ms = t.get("duration", {})
+                if isinstance(dur_ms, dict):
+                    dur_sec = int(dur_ms.get("totalMilliseconds", 0) / 1000)
+                else:
+                    dur_sec = int((dur_ms or 0) / 1000)
+
+                t_id = t.get("id") or ""
+                sp_url = (
+                    f"https://open.spotify.com/track/{t_id}"
+                    if t_id else
+                    f"https://open.spotify.com/artist/{artist_id}"
+                )
+                return {
+                    "url": sp_url,
+                    "title": title,
+                    "artist": t_artist.strip(", "),
+                    "album": a_name,
+                    "cover_url": cover,
+                    "lyrics": "",
+                    "duration_sec": dur_sec,
+                }
+
+            def _fetch_album_embed_tracks(alb_id: str) -> list[dict]:
+                """آهنگ‌های یک آلبوم رو از embed page اسپاتیفای می‌گیره."""
+                try:
+                    r = req_lib.get(
+                        f"https://open.spotify.com/embed/album/{alb_id}",
+                        headers=headers, timeout=12
+                    )
+                    r.raise_for_status()
+                    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.DOTALL)
+                    if not nm:
+                        return []
+                    ae = json.loads(nm.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+                    alb_name = ae.get("name", "")
+                    imgs = ae.get("images") or (ae.get("coverArt") or {}).get("sources") or []
+                    cover = max(imgs, key=lambda s: s.get("width", 0) or s.get("height", 0)).get("url", "") if imgs else ""
+                    raw_tracks = ae.get("tracks") or ae.get("trackList") or {}
+                    t_items = raw_tracks.get("items") if isinstance(raw_tracks, dict) else raw_tracks
+                    out = []
+                    for ti in (t_items or []):
+                        td = ti.get("track") or ti
+                        parsed = _parse_track_item(td, alb_name, cover)
+                        if parsed:
+                            out.append(parsed)
+                    return out
+                except Exception as e:
+                    logger.warning(f"Album embed {alb_id} failed: {e}")
+                    return []
+
+            # ── تابع fallback: آهنگ‌ها از embed Spotify (top tracks + discography) ──
             def _top_tracks_from_embed(entity: dict) -> list[dict]:
-                """
-                وقتی Deezer خواننده رو پیدا نکرد، از top tracks درج‌شده در
-                embed page اسپاتیفای استفاده می‌کنیم.
-                """
                 tracks_out = []
-                seen = set()
+                seen: set[str] = set()
+
+                def _add(t_dict: Optional[dict]):
+                    if not t_dict:
+                        return
+                    key = f"{t_dict['title'].lower()}|{t_dict['artist'].lower()}"
+                    if key in seen:
+                        return
+                    seen.add(key)
+                    tracks_out.append(t_dict)
+
+                # ── مرحله ۱: topTracks از entity ─────────────────────────────
                 top = entity.get("topTracks") or {}
-                items = top.get("items") or []
-                for item in items:
-                    t = item.get("track") or item
-                    title = t.get("name", "")
-                    if not title:
-                        continue
-                    # آرتیست‌ها
-                    raw_artists = t.get("artists") or t.get("artist", {})
-                    if isinstance(raw_artists, list):
-                        t_artist = ", ".join(
-                            (a.get("profile", {}).get("name") or a.get("name", ""))
-                            for a in raw_artists if a
+                top_items = top.get("items") if isinstance(top, dict) else (top if isinstance(top, list) else [])
+                for item in (top_items or []):
+                    _add(_parse_track_item(item.get("track") or item))
+
+                if tracks_out:
+                    logger.info(f"Spotify embed topTracks: {len(tracks_out)} found")
+                    return tracks_out
+
+                # ── مرحله ۲: از discography در entity آلبوم IDs رو جمع کن ──
+                logger.info(f"topTracks empty — scanning discography. Entity keys: {list(entity.keys())}")
+                discography = entity.get("discography") or {}
+                album_ids: list[str] = []
+
+                for disc_key in ["popularReleasesAlbums", "albums", "singles", "latest", "recentlyPlayed"]:
+                    section = discography.get(disc_key) or {}
+                    if isinstance(section, dict):
+                        # ممکنه مستقیم items داشته باشه یا تو releases باشه
+                        rel_items = (
+                            section.get("items")
+                            or (section.get("releases") or {}).get("items")
+                            or []
                         )
-                    elif isinstance(raw_artists, dict):
-                        t_artist = raw_artists.get("name", "") or artist_name
+                    elif isinstance(section, list):
+                        rel_items = section
                     else:
-                        t_artist = artist_name
-                    if not t_artist:
-                        t_artist = artist_name
-
-                    # کاور
-                    alb = t.get("albumOfTrack") or t.get("album") or {}
-                    cover = ""
-                    ca = alb.get("coverArt") or {}
-                    srcs = ca.get("sources") or []
-                    if srcs:
-                        cover = max(srcs, key=lambda s: s.get("width", 0) or 0).get("url", "")
-                    alb_name = alb.get("name", "")
-
-                    dur_ms = t.get("duration", {})
-                    dur_sec = int(dur_ms.get("totalMilliseconds", 0) / 1000) if isinstance(dur_ms, dict) else int((dur_ms or 0) / 1000)
-
-                    tid = t.get("id") or title
-                    if tid in seen:
                         continue
-                    seen.add(tid)
-                    tracks_out.append({
-                        "url": f"https://open.spotify.com/artist/{artist_id}",
-                        "title": title,
-                        "artist": t_artist.strip(", "),
-                        "album": alb_name,
-                        "cover_url": cover,
-                        "lyrics": "",
-                        "duration_sec": dur_sec,
-                    })
-                logger.info(f"Spotify embed top tracks: {len(tracks_out)} found")
+                    for rel in rel_items:
+                        aid = rel.get("id") or (rel.get("releases") or {}).get("items", [{}])[0].get("id", "")
+                        if aid and aid not in album_ids:
+                            album_ids.append(aid)
+
+                logger.info(f"Discography album IDs found: {len(album_ids)}")
+
+                # ── مرحله ۳: embed هر آلبوم ───────────────────────────────────
+                for alb_id in album_ids[:15]:
+                    for td in _fetch_album_embed_tracks(alb_id):
+                        _add(td)
+                    time.sleep(0.1)
+
+                logger.info(f"Spotify embed discography fallback: {len(tracks_out)} tracks total")
                 return tracks_out
 
             # ── مسیر ۱ (اگه credentials داریم): Spotify API کامل ─────────────
