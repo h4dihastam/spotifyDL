@@ -61,11 +61,13 @@ def _yt_opts_base() -> dict:
 
 
 def _yt_opts_youtube() -> dict:
-    """گزینه‌های اضافه برای YouTube — tv_embedded اول، web به عنوان fallback"""
+    """گزینه‌های اضافه برای YouTube — چند client به ترتیب اولویت"""
     return {
         **_yt_opts_base(),
         "extractor_args": {
-            "youtube": {"player_client": ["tv_embedded", "web"]}
+            "youtube": {
+                "player_client": ["ios", "tv_embedded", "android_music", "mweb", "web"]
+            }
         },
         "concurrent_fragment_downloads": 5,
     }
@@ -248,7 +250,7 @@ class Downloader:
         yt_entries = []
         try:
             with yt_dlp.YoutubeDL(yt_flat_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch3:{query}", download=False)
+                info = ydl.extract_info(f"ytsearch5:{query}", download=False)
                 yt_entries = info.get("entries") or []
         except Exception as e:
             logger.warning(f"YouTube search failed: {e}")
