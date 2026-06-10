@@ -279,47 +279,69 @@ class Downloader:
         is_youtube = "youtube.com" in url or "youtu.be" in url
         base_opts = _yt_opts_youtube() if is_youtube else _yt_opts_base()
 
-        ydl_opts = {
-            **base_opts,
-            "format": _SAFE_FORMAT,
-            "outtmpl": out_tmpl,
-            "noplaylist": True,
-            "ignoreerrors": False,
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": audio_quality,
-            }],
-        }
+        postprocessors = [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": audio_quality,
+        }]
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if info is None:
-                    return {"success": False, "error": "اطلاعاتی دریافت نشد"}
-                if "entries" in info:
-                    info = info["entries"][0]
+        # فرمت‌ها به ترتیب اولویت — اگه اولی fail شد، بعدی امتحان می‌شه
+        format_attempts = [
+            _SAFE_FORMAT,                          # bestaudio/best
+            "bestaudio[ext=m4a]/bestaudio/best",   # m4a اول
+            "best",                                # هر چی هست
+        ]
 
-                downloaded_path = self._find_mp3(ydl, info, safe_title)
-                if not downloaded_path:
-                    return {"success": False, "error": "فایل MP3 ساخته نشد"}
+        info = None
+        last_err = "اطلاعاتی دریافت نشد"
+        last_ydl = None
 
-                if not metadata.get("title"):
-                    title = info.get("title", "Unknown")
-                    parts = title.split(" - ", 1)
-                    metadata = {
-                        "title": parts[1].strip() if len(parts) == 2 else title,
-                        "artist": parts[0].strip() if len(parts) == 2 else info.get("uploader", ""),
-                        "album": "",
-                        "cover_url": info.get("thumbnail", ""),
-                        "lyrics": "",
-                    }
+        for fmt in format_attempts:
+            ydl_opts = {
+                **base_opts,
+                "format": fmt,
+                "outtmpl": out_tmpl,
+                "noplaylist": True,
+                "ignoreerrors": False,
+                "postprocessors": postprocessors,
+            }
+            try:
+                ydl_inst = yt_dlp.YoutubeDL(ydl_opts)
+                with ydl_inst:
+                    info = ydl_inst.extract_info(url, download=True)
+                    if info is None:
+                        last_err = "اطلاعاتی دریافت نشد"
+                        continue
+                    if "entries" in info:
+                        info = info["entries"][0]
+                    last_ydl = ydl_inst
+                break  # موفق شد
+            except yt_dlp.utils.DownloadError as e:
+                last_err = str(e)[:200]
+                if "Requested format is not available" in last_err or "No video formats found" in last_err:
+                    logger.warning(f"Format '{fmt}' failed for {url[:60]}, trying next...")
+                    continue
+                return {"success": False, "error": last_err}
+            except Exception as e:
+                return {"success": False, "error": str(e)[:200]}
 
-        except yt_dlp.utils.DownloadError as e:
-            err = str(e)
-            return {"success": False, "error": err[:200]}
-        except Exception as e:
-            return {"success": False, "error": str(e)[:200]}
+        if info is None or last_ydl is None:
+            return {"success": False, "error": last_err}
+
+        downloaded_path = self._find_mp3(last_ydl, info, safe_title)
+        if not downloaded_path:
+            return {"success": False, "error": "فایل MP3 ساخته نشد"}
+
+        if not metadata.get("title"):
+            title = info.get("title", "Unknown")
+            parts = title.split(" - ", 1)
+            metadata = {
+                "title": parts[1].strip() if len(parts) == 2 else title,
+                "artist": parts[0].strip() if len(parts) == 2 else info.get("uploader", ""),
+                "album": "",
+                "cover_url": info.get("thumbnail", ""),
+                "lyrics": "",
+            }
 
         thumb_path = None
         if metadata.get("cover_url"):
