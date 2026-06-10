@@ -19,6 +19,18 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 dl = Downloader()
 
+# ── وضعیت دانلودهای فعال ─────────────────────────────────────────────────────
+# chat_id → asyncio.Event  (set = درخواست توقف)
+_cancel_events: dict[int, asyncio.Event] = {}
+# قفل برای ارسال صوت (جلوگیری از flood)
+_send_locks: dict[int, asyncio.Lock] = {}
+
+
+def _get_send_lock(chat_id: int) -> asyncio.Lock:
+    if chat_id not in _send_locks:
+        _send_locks[chat_id] = asyncio.Lock()
+    return _send_locks[chat_id]
+
 
 def _extract_spotify_id(url: str) -> str:
     m = re.search(r'spotify\.com/(?:track|album|playlist|artist)/([A-Za-z0-9]+)', url)
@@ -29,6 +41,12 @@ def _bar(current: int, total: int, width: int = 10) -> str:
     filled = int(width * current / total) if total else 0
     pct = int(100 * current / total) if total else 0
     return f"{'▓' * filled}{'░' * (width - filled)} {pct}%"
+
+
+def _cancel_btn(chat_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⏹ توقف دانلود", callback_data=f"cancel|{chat_id}")
+    ]])
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -60,7 +78,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*کیفیت:*\n"
         "🔹 320kbps MP3\n"
         "🔸 128kbps MP3\n\n"
-        "⚠️ لینک خواننده ممکنه صدها آهنگ داشته باشه.",
+        "⚠️ دانلود خواننده ممکنه صدها آهنگ داشته باشه.\n"
+        "🔄 دانلودهای گروهی ۳ آهنگ همزمان پردازش می‌شن.",
         parse_mode="Markdown"
     )
 
@@ -99,7 +118,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     else:
-        # جستجو
         msg = await update.message.reply_text(f"🔍 جستجو: *{text}*...", parse_mode="Markdown")
         try:
             results = await dl.search(text, limit=5)
@@ -132,6 +150,24 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+
+    # ── دکمه توقف ──────────────────────────────────────────────────────────
+    if data.startswith("cancel|"):
+        try:
+            target_chat = int(data.split("|")[1])
+        except (IndexError, ValueError):
+            return
+        ev = _cancel_events.get(target_chat)
+        if ev:
+            ev.set()
+            try:
+                await query.edit_message_reply_markup(reply_markup=None)
+            except Exception:
+                pass
+            await query.answer("⏹ درخواست توقف ثبت شد…", show_alert=False)
+        else:
+            await query.answer("دانلودی در جریان نیست.", show_alert=False)
+        return
 
     if data.startswith("pick|"):
         _, idx, key = data.split("|", 2)
@@ -171,52 +207,76 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await run_download(update, context, url=stored["url"], kind="track", quality=quality, is_spotify=False)
 
 
-# ── دانلود مجموعه آهنگ‌ها با progress bar ────────────────────────────────────
-async def _run_tracks(bot, chat_id, query_msg, tracks: list, quality: str, label: str):
-    """دانلود لیست آهنگ‌ها با progress bar زنده"""
+# ── دانلود موازی با دکمه توقف ────────────────────────────────────────────────
+async def _run_tracks(bot, chat_id: int, query_msg, tracks: list, quality: str, label: str):
+    """
+    دانلود گروهی:
+    - ۳ آهنگ همزمان (سمافور)
+    - دکمه ⏹ توقف دانلود
+    - progress bar زنده
+    """
     total = len(tracks)
+    cancel_ev = asyncio.Event()
+    _cancel_events[chat_id] = cancel_ev
+
     progress_msg = await bot.send_message(
         chat_id,
-        f"📦 {total} آهنگ پیدا شد — شروع دانلود...\n{_bar(0, total)}"
+        f"📦 {total} آهنگ پیدا شد — شروع دانلود...\n{_bar(0, total)}",
+        reply_markup=_cancel_btn(chat_id)
     )
     try:
         await query_msg.delete()
     except Exception:
         pass
 
-    ok = fail = 0
-    for i, track in enumerate(tracks, 1):
-        title_short = (track.get("title") or "")[:35]
-        try:
-            await progress_msg.edit_text(
-                f"⏳ {label} — {i}/{total}\n"
-                f"🎵 {title_short}\n"
-                f"{_bar(i - 1, total)}"
-            )
-        except Exception:
-            pass
+    sem = asyncio.Semaphore(3)          # ۳ دانلود همزمان
+    send_lock = _get_send_lock(chat_id) # ارسال یکی‌یکی
+    completed = [0]
+    failed = [0]
 
-        try:
+    async def _dl_one(track: dict):
+        if cancel_ev.is_set():
+            return
+        async with sem:
+            if cancel_ev.is_set():
+                return
             prefetch = {
-                "title": track.get("title", ""),
-                "artist": track.get("artist", ""),
-                "album": track.get("album", ""),
+                "title":     track.get("title", ""),
+                "artist":    track.get("artist", ""),
+                "album":     track.get("album", ""),
                 "cover_url": track.get("cover_url", ""),
-                "lyrics": "",
+                "lyrics":    "",
+                "duration_sec": track.get("duration_sec", 0),
             }
-            result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
-            await send_audio(bot, chat_id, result)
-            ok += 1
-            await asyncio.sleep(1)
-        except Exception as e:
-            logger.error(f"Track {i} failed: {e}")
-            fail += 1
+            try:
+                result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
+                async with send_lock:
+                    await send_audio(bot, chat_id, result)
+                    await asyncio.sleep(0.8)
+                completed[0] += 1
+            except Exception as e:
+                logger.error(f"Track download failed: {e}")
+                failed[0] += 1
 
+            done = completed[0] + failed[0]
+            try:
+                await progress_msg.edit_text(
+                    f"⏳ {label} — {done}/{total}\n{_bar(done, total)}",
+                    reply_markup=_cancel_btn(chat_id)
+                )
+            except Exception:
+                pass
+
+    await asyncio.gather(*[_dl_one(t) for t in tracks])
+
+    _cancel_events.pop(chat_id, None)
+    cancelled = cancel_ev.is_set()
+    status = "🛑 دانلود متوقف شد" if cancelled else f"✅ {label} تموم شد!"
     try:
         await progress_msg.edit_text(
-            f"✅ {label} تموم شد!\n"
-            f"{_bar(total, total)}\n"
-            f"✔️ موفق: {ok}   ❌ ناموفق: {fail}"
+            f"{status}\n{_bar(total, total)}\n"
+            f"✔️ موفق: {completed[0]}   ❌ ناموفق: {failed[0]}",
+            reply_markup=None
         )
     except Exception:
         pass
@@ -309,7 +369,7 @@ def main():
     keep_alive()
 
     if os.environ.get("REPL_ID"):
-        logger.info("Running on Replit — Flask only (disabled to avoid Conflict with Render)")
+        logger.info("Running on Replit — Flask only (no polling)")
         import time
         while True:
             time.sleep(60)
