@@ -229,64 +229,51 @@ async def _run_tracks(bot, chat_id: int, query_msg, tracks: list, quality: str, 
     except Exception:
         pass
 
-    sem = asyncio.Semaphore(3)          # ۳ دانلود همزمان
-    send_lock = _get_send_lock(chat_id) # ارسال یکی‌یکی
+    send_lock = _get_send_lock(chat_id)
     completed = [0]
     failed = [0]
 
     async def _dl_one(track: dict):
-        async with sem:
+        if cancel_ev.is_set():
+            return
+        prefetch = {
+            "title":     track.get("title", ""),
+            "artist":    track.get("artist", ""),
+            "album":     track.get("album", ""),
+            "cover_url": track.get("cover_url", ""),
+            "lyrics":    "",
+            "duration_sec": track.get("duration_sec", 0),
+        }
+        try:
+            result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
             if cancel_ev.is_set():
                 return
-            prefetch = {
-                "title":     track.get("title", ""),
-                "artist":    track.get("artist", ""),
-                "album":     track.get("album", ""),
-                "cover_url": track.get("cover_url", ""),
-                "lyrics":    "",
-                "duration_sec": track.get("duration_sec", 0),
-            }
-            try:
-                result = await dl.download_one(track["url"], quality, True, prefetch=prefetch)
-                if cancel_ev.is_set():
-                    return
-                async with send_lock:
-                    await send_audio(bot, chat_id, result)
-                    await asyncio.sleep(0.8)
-                completed[0] += 1
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.error(f"Track download failed: {e}")
-                failed[0] += 1
+            async with send_lock:
+                await send_audio(bot, chat_id, result)
+                await asyncio.sleep(0.8)
+            completed[0] += 1
+        except Exception as e:
+            logger.error(f"Track download failed: {e}")
+            failed[0] += 1
 
-            done = completed[0] + failed[0]
-            try:
-                await progress_msg.edit_text(
-                    f"⏳ {label} — {done}/{total}\n{_bar(done, total)}",
-                    reply_markup=_cancel_btn(chat_id)
-                )
-            except Exception:
-                pass
-
-    # ── اجرا با قابلیت توقف واقعی ──────────────────────────────────────────
-    dl_tasks = [asyncio.create_task(_dl_one(t)) for t in tracks]
-
-    async def _cancel_watcher():
-        await cancel_ev.wait()
-        for t in dl_tasks:
-            if not t.done():
-                t.cancel()
-
-    watcher = asyncio.create_task(_cancel_watcher())
-    try:
-        await asyncio.gather(*dl_tasks, return_exceptions=True)
-    finally:
-        watcher.cancel()
+        done = completed[0] + failed[0]
         try:
-            await watcher
-        except asyncio.CancelledError:
+            await progress_msg.edit_text(
+                f"⏳ {label} — {done}/{total}\n{_bar(done, total)}",
+                reply_markup=_cancel_btn(chat_id)
+            )
+        except Exception:
             pass
+
+    # ── پردازش batch‌های ۳تایی — cancel بین هر batch چک می‌شه ─────────────
+    for i in range(0, total, 3):
+        if cancel_ev.is_set():
+            break
+        batch = tracks[i:i + 3]
+        await asyncio.gather(
+            *[asyncio.create_task(_dl_one(t)) for t in batch],
+            return_exceptions=True
+        )
 
     _cancel_events.pop(chat_id, None)
     cancelled = cancel_ev.is_set()
